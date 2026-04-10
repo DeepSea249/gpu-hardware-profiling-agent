@@ -1,0 +1,21 @@
+# C++ / CUDA Build artifacts
+build/
+*.o
+*.out
+*.exe
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+.pytest_cache/
+
+# Environment variables & Secrets
+.env
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Project specific
+results.json

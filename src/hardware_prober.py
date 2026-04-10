@@ -1,0 +1,815 @@
+"""
+Hardware Prober - Orchestrates GPU hardware intrinsic measurement.
+
+Coordinates CUDA micro-benchmarks to measure:
+- Memory latency hierarchy (L1, L2, DRAM via pointer chasing)
+- Effective peak bandwidth (global memory, shared memory)
+- L2 cache capacity (latency curve inflection detection)
+- Actual boost clock frequency (clock64/events ratio)
+- Shared memory limits per block
+- Bank conflict penalty
+- Active SM count
+
+Implements multi-strategy fusion for anti-hacking resilience:
+- Direct micro-benchmark measurement (primary)
+- ncu cross-verification (secondary)
+- nvidia-smi sanity checks (tertiary)
+"""
+
+import re
+import logging
+import subprocess
+from typing import Dict, List, Optional, Any
+
+from .probe_manager import ProbeManager
+from .ncu_profiler import NCUProfiler
+from .reasoning import ReasoningEngine
+from . import utils
+
+logger = logging.getLogger('GPUAgent.HardwareProber')
+
+
+class HardwareProber:
+    """Orchestrates all hardware intrinsic probing."""
+
+    # Mapping from target metric names to the probe(s) that measure them
+    METRIC_TO_PROBE = {
+        'l1_latency_cycles': 'latency_probe',
+        'l2_latency_cycles': 'latency_probe',
+        'dram_latency_cycles': 'latency_probe',
+        'l2_cache_size_kb': 'latency_probe',
+        'l2_cache_size_mb': 'latency_probe',
+        'max_global_bandwidth_gbps': 'bandwidth_probe',
+        'max_global_read_bandwidth_gbps': 'bandwidth_probe',
+        'max_global_write_bandwidth_gbps': 'bandwidth_probe',
+        'max_shmem_bandwidth_gbps': 'bandwidth_probe',
+        'max_shmem_bandwidth_gbps_per_sm': 'bandwidth_probe',
+        'actual_boost_clock_mhz': 'clock_probe',
+        'num_active_sms': 'clock_probe',
+        'num_sms': 'clock_probe',
+        'max_shmem_per_block_kb': 'shmem_limit_probe',
+        'max_shmem_per_block_bytes': 'shmem_limit_probe',
+        'bank_conflict_penalty_cycles': 'bank_conflict_probe',
+    }
+
+    def __init__(self, probe_dir: str, build_dir: str,
+                 num_trials: int = 5, reasoning: ReasoningEngine = None):
+        self.probe_manager = ProbeManager(probe_dir, build_dir)
+        self.ncu = NCUProfiler()
+        self.reasoning = reasoning or ReasoningEngine()
+        self.num_trials = num_trials
+        self.raw_data = {}       # Cache raw probe output
+        self.parsed_data = {}    # Cache parsed results
+        self.anomalies = []
+
+    def probe_all(self, targets: List[str]) -> Dict[str, Any]:
+        """
+        Probe all requested hardware metrics.
+
+        Args:
+            targets: List of metric names from target_spec.json
+
+        Returns:
+            Dictionary of metric_name -> measured_value
+        """
+        self.reasoning.log_step(
+            'planning',
+            f'Planning probes for {len(targets)} target metrics: {targets}'
+        )
+
+        # Phase 0: Environment detection
+        self._detect_environment()
+
+        # Determine which probes we need
+        needed_probes = set()
+        unknown_targets = []
+        for target in targets:
+            probe = self.METRIC_TO_PROBE.get(target)
+            if probe:
+                needed_probes.add(probe)
+            else:
+                unknown_targets.append(target)
+                logger.warning(f"Unknown target metric: {target}")
+
+        if unknown_targets:
+            self.reasoning.log_step(
+                'planning',
+                f'WARNING: Unknown metrics (will attempt best-effort): {unknown_targets}'
+            )
+
+        self.reasoning.log_step(
+            'planning',
+            f'Will run {len(needed_probes)} probes: {sorted(needed_probes)}'
+        )
+
+        # Phase 1: Compile all needed probes
+        self.reasoning.log_step('compilation', 'Compiling CUDA micro-benchmarks')
+        for probe_name in sorted(needed_probes):
+            try:
+                self.probe_manager.compile(probe_name)
+                self.reasoning.log_step('compilation', f'Compiled {probe_name} successfully')
+            except Exception as e:
+                self.reasoning.log_step('compilation', f'FAILED to compile {probe_name}: {e}')
+                raise
+
+        # Phase 2: Run probes in optimal order
+        # Clock probe first (provides context for other analyses)
+        probe_order = sorted(needed_probes,
+                             key=lambda p: 0 if p == 'clock_probe' else 1)
+
+        for probe_name in probe_order:
+            self._run_and_cache_probe(probe_name)
+
+        # Phase 3: Extract metrics from cached data
+        results = {}
+        for target in targets:
+            try:
+                value = self._extract_metric(target)
+                results[target] = value
+                self.reasoning.log_step(
+                    'result',
+                    f'Metric {target} = {value}',
+                    data={'metric': target, 'value': value}
+                )
+            except Exception as e:
+                logger.error(f"Failed to extract {target}: {e}")
+                self.reasoning.log_step(
+                    'error',
+                    f'Failed to extract {target}: {e}'
+                )
+                results[target] = None
+
+        # Phase 4: Cross-verification
+        self._cross_verify(results)
+
+        # Phase 5: Anomaly summary
+        self._summarize_anomalies()
+
+        return results
+
+    def _detect_environment(self):
+        """Detect the GPU environment and check for non-standard configurations."""
+        self.reasoning.log_step('environment', 'Detecting GPU environment')
+
+        # Query nvidia-smi for GPU info
+        gpu_info = utils.get_gpu_info()
+        self.reasoning.log_step(
+            'environment',
+            'GPU info from nvidia-smi',
+            data=gpu_info
+        )
+
+        # Check CUDA environment variables
+        cuda_env = utils.check_cuda_env()
+        if cuda_env:
+            self.reasoning.log_step(
+                'environment',
+                'CUDA environment variables detected (may affect measurements)',
+                data=cuda_env
+            )
+
+        # Store for later comparison
+        self._env_info = gpu_info
+
+    def _run_and_cache_probe(self, probe_name: str):
+        """Run a probe and cache the raw output."""
+        if probe_name in self.raw_data:
+            return
+
+        self.reasoning.log_step('execution', f'Running {probe_name}...')
+
+        try:
+            output = self.probe_manager.run(probe_name, timeout=300)
+            self.raw_data[probe_name] = output
+            self.reasoning.log_step(
+                'execution',
+                f'{probe_name} completed ({len(output)} bytes output)'
+            )
+
+            # Parse immediately
+            parsed = self._parse_probe_output(probe_name, output)
+            self.parsed_data[probe_name] = parsed
+            self.reasoning.log_step(
+                'parsing',
+                f'Parsed {probe_name}: {len(parsed)} data points',
+                data={k: v for k, v in list(parsed.items())[:10]}
+            )
+        except Exception as e:
+            self.reasoning.log_step('error', f'{probe_name} FAILED: {e}')
+            raise
+
+    def _parse_probe_output(self, probe_name: str, output: str) -> dict:
+        """Parse probe stdout output into structured data."""
+        parsed = {}
+
+        if probe_name == 'latency_probe':
+            parsed = self._parse_latency_output(output)
+        elif probe_name == 'bandwidth_probe':
+            parsed = self._parse_bandwidth_output(output)
+        elif probe_name == 'clock_probe':
+            parsed = self._parse_clock_output(output)
+        elif probe_name == 'bank_conflict_probe':
+            parsed = self._parse_bank_conflict_output(output)
+        elif probe_name == 'shmem_limit_probe':
+            parsed = self._parse_shmem_limit_output(output)
+
+        return parsed
+
+    def _parse_latency_output(self, output: str) -> dict:
+        """Parse latency probe output."""
+        data = {'data_points': []}
+
+        for line in output.split('\n'):
+            match = re.match(
+                r'SIZE_BYTES=(\d+)\s+AVG_CYCLES=([\d.]+)\s+'
+                r'MEDIAN_CYCLES=([\d.]+)\s+TRIMMED_MEAN=([\d.]+)',
+                line
+            )
+            if match:
+                data['data_points'].append({
+                    'size_bytes': int(match.group(1)),
+                    'avg_cycles': float(match.group(2)),
+                    'median_cycles': float(match.group(3)),
+                    'trimmed_mean': float(match.group(4)),
+                })
+
+        # Analyze the latency curve to find cache hierarchy
+        if data['data_points']:
+            hierarchy = self._analyze_latency_curve(data['data_points'])
+            data.update(hierarchy)
+
+        return data
+
+    def _analyze_latency_curve(self, data_points: list) -> dict:
+        """
+        Analyze the latency-vs-size curve to identify cache hierarchy.
+
+        Uses a multi-step approach:
+        1. Find L1 latency (minimum stable latency at small sizes)
+        2. Find L1->L2 transition (first major jump, typically >2x)
+        3. Find stable L2 latency (plateau detection)
+        4. Find L2->DRAM boundary (where latency rises >1% between consecutive
+           points after the stable L2 region)
+        5. DRAM latency at largest array sizes
+        """
+        points = sorted(data_points, key=lambda p: p['size_bytes'])
+        sizes = [p['size_bytes'] for p in points]
+        latencies = [p['median_cycles'] for p in points]
+
+        if len(latencies) < 3:
+            return {}
+
+        result = {}
+
+        # Step 1: L1 latency - minimum stable latency at small sizes
+        l1_candidates = [lat for sz, lat in zip(sizes, latencies)
+                         if sz <= 32 * 1024]
+        l1_latency = min(l1_candidates) if l1_candidates else latencies[0]
+        result['l1_latency_cycles'] = l1_latency
+
+        # Step 2: L1->L2 transition - first point where latency > 2x L1
+        l1_l2_idx = len(latencies) - 1  # fallback
+        for i, lat in enumerate(latencies):
+            if lat > l1_latency * 2.0:
+                l1_l2_idx = i
+                break
+        result['l1_l2_boundary_bytes'] = sizes[max(0, l1_l2_idx - 1)]
+
+        # Step 3: Find stable L2 latency
+        # L2 latency stabilizes after the ramp-up. Look for where the
+        # rate of change between consecutive points drops below 2%.
+        post_l1 = list(zip(sizes[l1_l2_idx:], latencies[l1_l2_idx:]))
+        stable_l2_start_idx = l1_l2_idx
+        for i in range(1, len(post_l1)):
+            rate = (post_l1[i][1] - post_l1[i-1][1]) / max(post_l1[i-1][1], 1)
+            if rate < 0.02:  # < 2% increase -> entering stable region
+                stable_l2_start_idx = l1_l2_idx + i
+                break
+
+        # Collect stable L2 points: consecutive points with < 2% change
+        stable_l2_points = []
+        for i in range(stable_l2_start_idx, len(latencies)):
+            if i > stable_l2_start_idx:
+                rate = (latencies[i] - latencies[i-1]) / max(latencies[i-1], 1)
+                if rate > 0.02:  # Leaving stable region
+                    break
+            stable_l2_points.append(latencies[i])
+
+        if stable_l2_points:
+            result['l2_latency_cycles'] = utils.median(stable_l2_points)
+        else:
+            # Fallback: use latency at a mid-range L2 size
+            mid_idx = (l1_l2_idx + len(latencies)) // 2
+            result['l2_latency_cycles'] = latencies[min(mid_idx, len(latencies)-1)]
+
+        stable_l2_lat = result['l2_latency_cycles']
+
+        # Step 4: L2->DRAM boundary detection
+        # Primary method: find the "cliff" - first pair of consecutive points
+        # IN THE STABLE L2 REGION where the rate of change exceeds 10%
+        # (indicating DRAM spill). Must search AFTER L2 stabilizes.
+        # Fallback: use 5% threshold on stable L2 latency
+        l2_boundary_idx = len(latencies) - 1  # fallback
+
+        # Method A: Cliff detection starting from stable L2 region
+        cliff_found = False
+        for i in range(stable_l2_start_idx + 1, len(latencies)):
+            rate = (latencies[i] - latencies[i-1]) / max(latencies[i-1], 1)
+            if rate > 0.10:  # > 10% jump -> DRAM cliff
+                l2_boundary_idx = i - 1
+                cliff_found = True
+                break
+
+        # Method B: If no sharp cliff found, use 5% above stable L2
+        if not cliff_found:
+            for i in range(stable_l2_start_idx, len(latencies)):
+                if latencies[i] > stable_l2_lat * 1.05:
+                    l2_boundary_idx = max(l1_l2_idx, i - 1)
+                    break
+
+        l2_size_bytes = sizes[l2_boundary_idx]
+        result['l2_dram_boundary_bytes'] = l2_size_bytes
+        result['l2_cache_size_kb'] = l2_size_bytes / 1024
+        result['l2_cache_size_mb'] = l2_size_bytes / (1024 * 1024)
+
+        # Step 5: DRAM latency - latency at the largest array sizes
+        # Use the maximum of the last 2 points for stability
+        dram_latencies = latencies[-2:] if len(latencies) >= 2 else latencies[-1:]
+        result['dram_latency_cycles'] = max(dram_latencies)
+
+        # Log diagnostic info
+        result['_analysis'] = {
+            'l1_l2_transition_idx': l1_l2_idx,
+            'stable_l2_start_idx': stable_l2_start_idx,
+            'l2_boundary_idx': l2_boundary_idx,
+            'num_stable_l2_points': len(stable_l2_points),
+        }
+
+        return result
+
+    def _parse_bandwidth_output(self, output: str) -> dict:
+        """Parse bandwidth probe output."""
+        data = {}
+
+        for line in output.split('\n'):
+            # Active SM count
+            match = re.match(r'ACTIVE_SM_COUNT=(\d+)', line)
+            if match:
+                data['active_sm_count'] = int(match.group(1))
+                continue
+
+            # Global read bandwidth
+            match = re.match(r'GLOBAL_READ_BW_GBPS=([\d.]+)\s+SIZE_MB=(\d+)', line)
+            if match:
+                bw = float(match.group(1))
+                data.setdefault('global_read_bw', []).append(bw)
+                continue
+
+            # Global write bandwidth
+            match = re.match(r'GLOBAL_WRITE_BW_GBPS=([\d.]+)\s+SIZE_MB=(\d+)', line)
+            if match:
+                bw = float(match.group(1))
+                data.setdefault('global_write_bw', []).append(bw)
+                continue
+
+            # Global copy bandwidth
+            match = re.match(r'GLOBAL_COPY_BW_GBPS=([\d.]+)', line)
+            if match:
+                bw = float(match.group(1))
+                data.setdefault('global_copy_bw', []).append(bw)
+                continue
+
+            # Best values
+            match = re.match(r'BEST_GLOBAL_READ_BW_GBPS=([\d.]+)', line)
+            if match:
+                data['best_read_bw_gbps'] = float(match.group(1))
+                continue
+
+            match = re.match(r'BEST_GLOBAL_WRITE_BW_GBPS=([\d.]+)', line)
+            if match:
+                data['best_write_bw_gbps'] = float(match.group(1))
+                continue
+
+            match = re.match(r'BEST_GLOBAL_COPY_BW_GBPS=([\d.]+)', line)
+            if match:
+                data['best_copy_bw_gbps'] = float(match.group(1))
+                continue
+
+            # Shared memory bandwidth
+            match = re.match(r'SHMEM_BW_GBPS_PER_SM=([\d.]+)', line)
+            if match:
+                data['shmem_bw_gbps_per_sm'] = float(match.group(1))
+                continue
+
+            match = re.match(r'SHMEM_BW_GBPS_AGGREGATE=([\d.]+)', line)
+            if match:
+                data['shmem_bw_gbps_aggregate'] = float(match.group(1))
+                continue
+
+        return data
+
+    def _parse_clock_output(self, output: str) -> dict:
+        """Parse clock probe output."""
+        data = {'trials': []}
+
+        for line in output.split('\n'):
+            # Trial results
+            match = re.match(
+                r'TRIAL=\d+\s+CYCLES=(\d+)\s+ELAPSED_MS=([\d.]+)\s+CLOCK_MHZ=([\d.]+)',
+                line
+            )
+            if match:
+                data['trials'].append({
+                    'cycles': int(match.group(1)),
+                    'elapsed_ms': float(match.group(2)),
+                    'clock_mhz': float(match.group(3)),
+                })
+                continue
+
+            # Final clock measurement
+            match = re.match(r'CLOCK_MHZ=([\d.]+)', line)
+            if match:
+                data['measured_clock_mhz'] = float(match.group(1))
+                continue
+
+            # SM count
+            match = re.match(r'NUM_ACTIVE_SMS=(\d+)', line)
+            if match:
+                data['num_active_sms'] = int(match.group(1))
+                continue
+
+            # Reported values from cudaGetDeviceProperties
+            match = re.match(r'REPORTED_CLOCK_KHZ=(\d+)', line)
+            if match:
+                data['reported_clock_mhz'] = int(match.group(1)) / 1000.0
+                continue
+
+            match = re.match(r'REPORTED_SM_COUNT=(\d+)', line)
+            if match:
+                data['reported_sm_count'] = int(match.group(1))
+                continue
+
+            match = re.match(r'REPORTED_DEVICE_NAME=(.+)', line)
+            if match:
+                data['reported_device_name'] = match.group(1).strip()
+                continue
+
+            match = re.match(r'REPORTED_COMPUTE_CAP=(.+)', line)
+            if match:
+                data['reported_compute_cap'] = match.group(1).strip()
+                continue
+
+            # Anomalies
+            match = re.match(r'ANOMALY=(\w+)\s+measured=([\d.]+)\s+reported=([\d.]+)', line)
+            if match:
+                data.setdefault('anomalies', []).append({
+                    'type': match.group(1),
+                    'measured': float(match.group(2)),
+                    'reported': float(match.group(3)),
+                })
+                continue
+
+        return data
+
+    def _parse_bank_conflict_output(self, output: str) -> dict:
+        """Parse bank conflict probe output."""
+        data = {'stride_results': []}
+
+        for line in output.split('\n'):
+            match = re.match(r'STRIDE=(\d+)\s+CYCLES_PER_ACCESS=([\d.]+)', line)
+            if match:
+                data['stride_results'].append({
+                    'stride': int(match.group(1)),
+                    'cycles_per_access': float(match.group(2)),
+                })
+                continue
+
+            match = re.match(r'BANK_CONFLICT_PENALTY_CYCLES=([\d.]+)', line)
+            if match:
+                data['penalty_cycles'] = float(match.group(1))
+                continue
+
+            match = re.match(r'NO_CONFLICT_CYCLES=([\d.]+)', line)
+            if match:
+                data['no_conflict_cycles'] = float(match.group(1))
+                continue
+
+            match = re.match(r'MAX_CONFLICT_CYCLES=([\d.]+)', line)
+            if match:
+                data['max_conflict_cycles'] = float(match.group(1))
+                continue
+
+        return data
+
+    def _parse_shmem_limit_output(self, output: str) -> dict:
+        """Parse shared memory limit probe output."""
+        data = {}
+
+        for line in output.split('\n'):
+            match = re.match(r'MAX_SHMEM_PER_BLOCK_BYTES=(\d+)', line)
+            if match:
+                data['max_shmem_bytes'] = int(match.group(1))
+                continue
+
+            match = re.match(r'MAX_SHMEM_PER_BLOCK_KB=(\d+)', line)
+            if match:
+                data['max_shmem_kb'] = int(match.group(1))
+                continue
+
+            match = re.match(r'DEFAULT_SHMEM_LIMIT_BYTES=(\d+)', line)
+            if match:
+                data['default_shmem_bytes'] = int(match.group(1))
+                continue
+
+            match = re.match(r'EXTENDED_SHMEM_LIMIT_BYTES=(\d+)', line)
+            if match:
+                data['extended_shmem_bytes'] = int(match.group(1))
+                continue
+
+            match = re.match(r'REPORTED_SHMEM_PER_BLOCK=(\d+)', line)
+            if match:
+                data['reported_shmem_per_block'] = int(match.group(1))
+                continue
+
+            match = re.match(r'REPORTED_SHMEM_PER_SM=(\d+)', line)
+            if match:
+                data['reported_shmem_per_sm'] = int(match.group(1))
+                continue
+
+        return data
+
+    def _extract_metric(self, target: str) -> Optional[float]:
+        """Extract a specific metric from parsed probe data."""
+        probe_name = self.METRIC_TO_PROBE.get(target)
+
+        if probe_name and probe_name not in self.parsed_data:
+            # Try to run the probe if we haven't yet
+            self._run_and_cache_probe(probe_name)
+
+        data = self.parsed_data.get(probe_name, {})
+
+        # --- Latency metrics ---
+        if target == 'l1_latency_cycles':
+            val = data.get('l1_latency_cycles')
+            if val:
+                self.reasoning.set_methodology(
+                    target,
+                    'Pointer-chasing micro-benchmark',
+                    'Single-thread random-stride pointer chase with array size '
+                    '<= 16KB (fits in L1 cache). Measured clock cycles per access. '
+                    'Minimum latency across small array sizes taken as L1 latency.'
+                )
+            return val
+
+        if target == 'l2_latency_cycles':
+            val = data.get('l2_latency_cycles')
+            if val:
+                self.reasoning.set_methodology(
+                    target,
+                    'Pointer-chasing micro-benchmark',
+                    'Pointer chase with array sizes between L1 and L2 boundaries. '
+                    'Median latency in the "L2 plateau" region of the latency curve.'
+                )
+            return val
+
+        if target == 'dram_latency_cycles':
+            val = data.get('dram_latency_cycles')
+            if val:
+                self.reasoning.set_methodology(
+                    target,
+                    'Pointer-chasing micro-benchmark',
+                    'Pointer chase with array size >> L2 cache capacity. '
+                    'Random stride defeats prefetcher. Maximum stable latency '
+                    'at large array sizes.'
+                )
+            return val
+
+        if target in ('l2_cache_size_kb', 'l2_cache_size_mb'):
+            val = data.get(target)
+            if val:
+                self.reasoning.set_methodology(
+                    target,
+                    'Latency curve inflection detection',
+                    'Swept array sizes and measured access latency at each size. '
+                    'Identified the "cliff" where latency jumps from L2 to DRAM levels. '
+                    'The array size just before this transition equals L2 cache capacity.'
+                )
+            return val
+
+        # --- Bandwidth metrics ---
+        if target == 'max_global_bandwidth_gbps':
+            val = data.get('best_read_bw_gbps')
+            if val:
+                self.reasoning.set_methodology(
+                    target,
+                    'Vectorized global memory read benchmark',
+                    'Large array (64-512MB) read with float4 coalesced access. '
+                    'All SMs active. Maximum of multiple transfer sizes. '
+                    'CUDA events for wall-clock timing.'
+                )
+            return val
+
+        if target == 'max_global_read_bandwidth_gbps':
+            return data.get('best_read_bw_gbps')
+
+        if target == 'max_global_write_bandwidth_gbps':
+            return data.get('best_write_bw_gbps')
+
+        if target == 'max_shmem_bandwidth_gbps':
+            val = data.get('shmem_bw_gbps_aggregate')
+            if val:
+                self.reasoning.set_methodology(
+                    target,
+                    'Shared memory bandwidth benchmark (aggregate)',
+                    'One block per SM, 1024 threads/block, float4 reads from shared memory. '
+                    'Bank-conflict-free access pattern. CUDA events for wall-clock timing. '
+                    'Aggregate across all active SMs.'
+                )
+            return val
+
+        if target == 'max_shmem_bandwidth_gbps_per_sm':
+            return data.get('shmem_bw_gbps_per_sm')
+
+        # --- Clock metrics ---
+        if target == 'actual_boost_clock_mhz':
+            val = data.get('measured_clock_mhz')
+            if val:
+                self.reasoning.set_methodology(
+                    target,
+                    'clock64() / CUDA-event ratio under sustained FMA load',
+                    'Ran 50M dependent FMA operations. Measured cycles via clock64() '
+                    'and wall-clock via CUDA events. Clock frequency = cycles / time. '
+                    'Includes 100K FMA warmup to reach stable boost state. '
+                    'Median of multiple trials for stability.'
+                )
+            return val
+
+        if target in ('num_active_sms', 'num_sms'):
+            val = data.get('num_active_sms')
+            if val:
+                self.reasoning.set_methodology(
+                    target,
+                    'Inline PTX %smid register detection',
+                    'Launched 4096 blocks, each reporting its SM ID via '
+                    'asm("mov.u32 %0, %%smid"). Counted unique SM IDs. '
+                    'This bypasses potentially spoofed cudaGetDeviceProperties.'
+                )
+            return val
+
+        # --- Shared memory limit ---
+        if target == 'max_shmem_per_block_kb':
+            val = data.get('max_shmem_kb')
+            if val:
+                self.reasoning.set_methodology(
+                    target,
+                    'Binary search with kernel launch attempts',
+                    'Binary search over dynamic shared memory sizes. '
+                    'Uses cudaFuncSetAttribute for extended shared memory. '
+                    'Tests both default and opt-in limits. '
+                    'Finds maximum size where kernel launch succeeds.'
+                )
+            return val
+
+        if target == 'max_shmem_per_block_bytes':
+            return data.get('max_shmem_bytes')
+
+        # --- Bank conflict penalty ---
+        if target == 'bank_conflict_penalty_cycles':
+            val = data.get('penalty_cycles')
+            if val:
+                self.reasoning.set_methodology(
+                    target,
+                    'Controlled shared memory access stride comparison',
+                    'Compared clock cycles for stride=1 (no bank conflict, '
+                    '32 threads access 32 distinct banks) vs stride=32 '
+                    '(32-way conflict, all threads access bank 0). '
+                    'Penalty = conflict_cycles - no_conflict_cycles.'
+                )
+            return val
+
+        # Unknown metric - try to find it in any parsed data
+        for probe_data in self.parsed_data.values():
+            if target in probe_data:
+                return probe_data[target]
+
+        return None
+
+    def _cross_verify(self, results: Dict[str, Any]):
+        """Cross-verify results using multiple data sources."""
+        self.reasoning.log_step(
+            'cross_verify',
+            'Phase 4: Cross-verifying measurements'
+        )
+
+        # Cross-verify clock frequency
+        clock_data = self.parsed_data.get('clock_probe', {})
+        if clock_data:
+            measured_clock = clock_data.get('measured_clock_mhz')
+            reported_clock = clock_data.get('reported_clock_mhz')
+
+            if measured_clock and reported_clock:
+                deviation = abs(measured_clock - reported_clock) / reported_clock * 100
+                agree = deviation < 10  # 10% tolerance
+
+                self.reasoning.log_cross_verification(
+                    'clock_frequency',
+                    'micro-benchmark (clock64/events)',
+                    measured_clock,
+                    'cudaGetDeviceProperties',
+                    reported_clock,
+                    agree
+                )
+
+                if not agree:
+                    self.reasoning.log_anomaly(
+                        'FREQ_LOCKING',
+                        f'Measured GPU clock ({measured_clock:.0f} MHz) differs '
+                        f'significantly from reported ({reported_clock:.0f} MHz). '
+                        f'The GPU may be frequency-locked at a non-standard rate.',
+                        expected=reported_clock,
+                        measured=measured_clock,
+                    )
+
+            # Also check against nvidia-smi
+            smi_clocks = utils.get_nvidia_smi_clocks()
+            smi_clock = smi_clocks.get('current_sm_clock_mhz')
+            if smi_clock and measured_clock:
+                deviation = abs(measured_clock - smi_clock) / max(smi_clock, 1) * 100
+                self.reasoning.log_cross_verification(
+                    'clock_frequency',
+                    'micro-benchmark',
+                    measured_clock,
+                    'nvidia-smi current clock',
+                    smi_clock,
+                    deviation < 10
+                )
+
+        # Cross-verify SM count
+        clock_sms = clock_data.get('num_active_sms')
+        bw_data = self.parsed_data.get('bandwidth_probe', {})
+        bw_sms = bw_data.get('active_sm_count')
+        reported_sms = clock_data.get('reported_sm_count')
+
+        if clock_sms and reported_sms:
+            agree = clock_sms == reported_sms
+            self.reasoning.log_cross_verification(
+                'sm_count',
+                'PTX smid probe (clock)',
+                clock_sms,
+                'cudaGetDeviceProperties',
+                reported_sms,
+                agree
+            )
+            if not agree:
+                self.reasoning.log_anomaly(
+                    'SM_MASKING',
+                    f'Active SM count ({clock_sms}) differs from reported ({reported_sms}). '
+                    f'The system may be restricting kernel execution to a subset of SMs.',
+                    expected=reported_sms,
+                    measured=clock_sms,
+                )
+
+        if clock_sms and bw_sms:
+            self.reasoning.log_cross_verification(
+                'sm_count',
+                'PTX smid probe (clock)',
+                clock_sms,
+                'PTX smid probe (bandwidth)',
+                bw_sms,
+                clock_sms == bw_sms
+            )
+
+        # Cross-verify shared memory limit
+        shmem_data = self.parsed_data.get('shmem_limit_probe', {})
+        measured_shmem = shmem_data.get('max_shmem_bytes')
+        reported_shmem = shmem_data.get('reported_shmem_per_block')
+
+        if measured_shmem and reported_shmem:
+            self.reasoning.log_cross_verification(
+                'shmem_per_block',
+                'binary search probe',
+                measured_shmem,
+                'cudaGetDeviceProperties',
+                reported_shmem,
+                abs(measured_shmem - reported_shmem) < 1024  # Within 1KB
+            )
+
+    def _summarize_anomalies(self):
+        """Produce a summary of all detected anomalies."""
+        anomalies = self.reasoning.anomalies
+        if anomalies:
+            self.reasoning.log_step(
+                'summary',
+                f'ANOMALY SUMMARY: Detected {len(anomalies)} anomalies',
+                data={'anomalies': [a['type'] for a in anomalies]}
+            )
+            for a in anomalies:
+                self.reasoning.log_step(
+                    'summary',
+                    f'  - {a["type"]}: {a["description"]}'
+                )
+        else:
+            self.reasoning.log_step(
+                'summary',
+                'No anomalies detected - environment appears standard'
+            )

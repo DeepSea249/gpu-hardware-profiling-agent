@@ -1,0 +1,14 @@
+{
+    "targets": [
+        "l1_latency_cycles",
+        "l2_latency_cycles",
+        "dram_latency_cycles",
+        "l2_cache_size_kb",
+        "max_global_bandwidth_gbps",
+        "max_shmem_bandwidth_gbps",
+        "actual_boost_clock_mhz",
+        "max_shmem_per_block_kb",
+        "bank_conflict_penalty_cycles",
+        "num_active_sms"
+    ]
+}
