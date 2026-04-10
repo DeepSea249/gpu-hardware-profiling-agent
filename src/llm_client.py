@@ -96,14 +96,12 @@ class LLMClient:
             {"role": "user", "content": user_prompt},
         ]
 
-        extra_body = {}
-        if self.enable_thinking:
-            extra_body["enable_thinking"] = True
+        extra_body = {"enable_thinking": self.enable_thinking}
 
         stream = self._client.chat.completions.create(
             model=self.model,
             messages=messages,
-            extra_body=extra_body if extra_body else None,
+            extra_body=extra_body,
             stream=True,
             stream_options={"include_usage": True},
         )

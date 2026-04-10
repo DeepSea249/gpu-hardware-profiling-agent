@@ -28,6 +28,23 @@ from . import utils
 
 logger = logging.getLogger('GPUAgent.HardwareProber')
 
+# Lazy-loaded LLM client for semantic resolution (no thinking mode => fast)
+_llm_client = None
+
+
+def _get_llm():
+    global _llm_client
+    if _llm_client is not None:
+        return _llm_client
+    try:
+        from .llm_client import LLMClient
+        _llm_client = LLMClient(enable_thinking=False)
+        # Tighten read-timeout so a single slow stream cannot block indefinitely
+        _llm_client._client.timeout = 30
+    except Exception:
+        _llm_client = None
+    return _llm_client
+
 
 class HardwareProber:
     """Orchestrates all hardware intrinsic probing."""
@@ -52,6 +69,12 @@ class HardwareProber:
         'bank_conflict_penalty_cycles': 'bank_conflict_probe',
     }
 
+    # Valid probe names the semantic resolver is allowed to return
+    VALID_PROBES = {
+        'latency_probe', 'bandwidth_probe', 'clock_probe',
+        'shmem_limit_probe', 'bank_conflict_probe',
+    }
+
     def __init__(self, probe_dir: str, build_dir: str,
                  num_trials: int = 5, reasoning: ReasoningEngine = None):
         self.probe_manager = ProbeManager(probe_dir, build_dir)
@@ -61,6 +84,7 @@ class HardwareProber:
         self.raw_data = {}       # Cache raw probe output
         self.parsed_data = {}    # Cache parsed results
         self.anomalies = []
+        self._semantic_cache: Dict[str, Optional[str]] = {}  # target -> probe
 
     def probe_all(self, targets: List[str]) -> Dict[str, Any]:
         """
@@ -89,13 +113,30 @@ class HardwareProber:
                 needed_probes.add(probe)
             else:
                 unknown_targets.append(target)
-                logger.warning(f"Unknown target metric: {target}")
 
+        # --- Batch semantic resolution via a single LLM call ---
         if unknown_targets:
-            self.reasoning.log_step(
-                'planning',
-                f'WARNING: Unknown metrics (will attempt best-effort): {unknown_targets}'
-            )
+            resolved_map = self._resolve_targets_semantically(unknown_targets)
+            still_unknown = []
+            for t in unknown_targets:
+                probe = resolved_map.get(t)
+                if probe:
+                    needed_probes.add(probe)
+                    self.reasoning.log_step(
+                        'semantic_resolve',
+                        f'Resolved unknown target "{t}" → probe '
+                        f'"{probe}" via LLM semantic analysis',
+                        data={'target': t, 'resolved_probe': probe},
+                    )
+                else:
+                    still_unknown.append(t)
+                    logger.warning(f"Unknown target metric: {t}")
+            if still_unknown:
+                self.reasoning.log_step(
+                    'planning',
+                    f'WARNING: Unknown metrics (could not resolve, will '
+                    f'attempt best-effort): {still_unknown}'
+                )
 
         self.reasoning.log_step(
             'planning',
@@ -153,6 +194,117 @@ class HardwareProber:
         self.reasoning.generate_final_analysis(results, self.parsed_data)
 
         return results
+
+    # ------------------------------------------------------------------ #
+    #  LLM-based Semantic Resolver (batch)                                 #
+    # ------------------------------------------------------------------ #
+    def _resolve_targets_semantically(
+        self, target_names: List[str]
+    ) -> Dict[str, Optional[str]]:
+        """Use a single LLM call to map multiple unknown targets to probes.
+
+        Results are cached so repeated calls with the same targets are free.
+
+        Returns:
+            {target_name: probe_name_or_None}
+        """
+        # Partition into cached and new
+        result: Dict[str, Optional[str]] = {}
+        to_resolve: List[str] = []
+        for t in target_names:
+            if t in self._semantic_cache:
+                result[t] = self._semantic_cache[t]
+                logger.info('Semantic cache hit: "%s" → %s', t, result[t])
+            else:
+                to_resolve.append(t)
+
+        if not to_resolve:
+            return result
+
+        probe_list = ', '.join(sorted(self.VALID_PROBES))
+        target_list = '\n'.join(f'  - {t}' for t in to_resolve)
+
+        system_prompt = (
+            "You are a GPU architecture expert. A user wants to measure "
+            "several hardware metrics with non-standard names. For each "
+            "name, determine which single CUDA micro-benchmark probe is "
+            "most likely to provide the measurement.\n"
+            f"Available probes: [{probe_list}]\n"
+            "Probe descriptions:\n"
+            "- latency_probe: L1/L2/DRAM access latencies, L2 cache size "
+            "(pointer-chasing micro-benchmark).\n"
+            "- bandwidth_probe: global & shared memory peak bandwidth.\n"
+            "- clock_probe: actual GPU boost clock frequency, active SM "
+            "count.\n"
+            "- shmem_limit_probe: maximum shared memory per block.\n"
+            "- bank_conflict_probe: shared memory bank conflict penalty.\n\n"
+            "Reply with EXACTLY one line per metric in the format:\n"
+            "  metric_name -> probe_name\n"
+            "If no probe fits, use:\n"
+            "  metric_name -> unknown"
+        )
+        user_prompt = f"Metric names:\n{target_list}"
+
+        client = _get_llm()
+        if client is None:
+            logger.warning('LLM unavailable – cannot resolve targets semantically')
+            for t in to_resolve:
+                self._semantic_cache[t] = None
+                result[t] = None
+            return result
+
+        try:
+            answer = client.generate_reasoning(system_prompt, user_prompt)
+            logger.info('Semantic resolver raw answer:\n%s', answer.strip())
+
+            # Parse "target -> probe_name" lines
+            for line in answer.strip().splitlines():
+                line = line.strip().lower().replace('`', '')
+                if '->' not in line:
+                    continue
+                left, right = line.split('->', 1)
+                metric = left.strip()
+                probe_candidate = right.strip()
+
+                # Match against the original names (case-insensitive)
+                matched_target = None
+                for t in to_resolve:
+                    if t.lower() == metric or t.lower() in metric:
+                        matched_target = t
+                        break
+                if matched_target is None:
+                    continue
+
+                resolved = None
+                for p in self.VALID_PROBES:
+                    if p in probe_candidate:
+                        resolved = p
+                        break
+
+                self._semantic_cache[matched_target] = resolved
+                result[matched_target] = resolved
+                if resolved:
+                    logger.info('Semantic resolver: "%s" → %s',
+                                matched_target, resolved)
+                else:
+                    logger.info('Semantic resolver: "%s" → unknown',
+                                matched_target)
+
+            # Fill any targets the LLM didn't mention
+            for t in to_resolve:
+                if t not in result:
+                    self._semantic_cache[t] = None
+                    result[t] = None
+                    logger.info('Semantic resolver: "%s" → not mentioned', t)
+
+        except Exception as exc:
+            logger.warning('Semantic resolution failed: %s', exc)
+            for t in to_resolve:
+                if t not in result:
+                    self._semantic_cache[t] = None
+                    result[t] = None
+
+        return result
 
     def _detect_environment(self):
         """Detect the GPU environment and check for non-standard configurations."""
@@ -547,7 +699,8 @@ class HardwareProber:
 
     def _extract_metric(self, target: str) -> Optional[float]:
         """Extract a specific metric from parsed probe data."""
-        probe_name = self.METRIC_TO_PROBE.get(target)
+        probe_name = (self.METRIC_TO_PROBE.get(target)
+                      or self._semantic_cache.get(target))
 
         if probe_name and probe_name not in self.parsed_data:
             # Try to run the probe if we haven't yet

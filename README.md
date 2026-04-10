@@ -1,56 +1,67 @@
 # GPU Hardware Intrinsic Profiling Agent
 
-An autonomous agent system for probing GPU hardware characteristics using CUDA micro-benchmarks and NVIDIA Nsight Compute (ncu) profiling.
+An autonomous agent system for probing GPU hardware characteristics using CUDA micro-benchmarks and NVIDIA Nsight Compute (ncu) profiling, plus kernel-level bottleneck analysis (Sections 1.1-1.6).
+
+## Evaluation Entry Point
+
+```bash
+# Place your target_spec.json in the project root, then:
+chmod +x run.sh && ./run.sh
+
+# Or with a custom spec path:
+./run.sh --target-spec /path/to/target_spec.json --output results.json
+```
+
+The agent reads **everything** from `target_spec.json` — no hardcoded workflow:
+
+```jsonc
+{
+  "targets": ["dram_latency_cycles", "actual_boost_clock_mhz", ...],
+  "run": "path/to/executable"   // optional: kernel to profile via ncu
+}
+```
+
+- **`targets`**: list of hardware metrics to identify via micro-benchmarks (Section 1.7)
+- **`run`**: path to a CUDA executable to profile for bottleneck analysis (Sections 1.1-1.6)
+
+Both fields are optional — the agent runs whichever phases are requested.
 
 ## Architecture
 
 ```
-agent.py                     # Main entry point & orchestrator
+run.sh                       # ← Evaluation entry point (single command)
+agent.py                     # Main orchestrator
 ├── src/
 │   ├── hardware_prober.py   # Coordinates all hardware probing
 │   ├── probe_manager.py     # Compiles & runs CUDA micro-benchmarks
-│   ├── ncu_profiler.py      # Nsight Compute integration
-│   ├── kernel_analyzer.py   # Kernel bottleneck analysis (Section 1)
-│   ├── reasoning.py         # Structured reasoning/logging engine
+│   ├── ncu_profiler.py      # Nsight Compute integration & CSV parser
+│   ├── kernel_analyzer.py   # Kernel bottleneck analysis (Sections 1.1-1.6)
+│   ├── reasoning.py         # Structured reasoning/logging + LLM integration
+│   ├── llm_client.py        # DashScope LLM client with retry & streaming
 │   └── utils.py             # nvidia-smi queries, statistics
-├── probes/
+├── probes/                  # CUDA micro-benchmark source files
 │   ├── latency_probe.cu     # Pointer-chasing memory latency hierarchy
 │   ├── bandwidth_probe.cu   # Global & shared memory bandwidth
 │   ├── clock_probe.cu       # Clock frequency & SM count detection
 │   ├── bank_conflict_probe.cu # Shared memory bank conflict penalty
-│   └── shmem_limit_probe.cu # Max shared memory per block
-└── build/                   # Compiled probe binaries (auto-generated)
+│   ├── shmem_limit_probe.cu # Max shared memory per block
+│   └── ncu_verify_probe.cu  # Cross-verification via ncu
+├── kernels/                 # Sample CUDA kernels for testing
+│   ├── matmul_naive.cu      # Naive matmul (no tiling, no Tensor Cores)
+│   ├── matmul_tiled.cu      # Tiled matmul with shared memory
+│   └── matmul_tensor.cu     # WMMA Tensor Core matmul (FP16→FP32)
+└── build/                   # Compiled binaries (auto-generated)
 ```
 
-## Quick Start
+## Output Files
 
-```bash
-# Run with default target_spec.json
-chmod +x run.sh && ./run.sh
-
-# Or directly with Python
-python3 agent.py --target-spec target_spec.json --output results.json
-```
-
-## Input / Output
-
-**Input** (`target_spec.json`):
-```json
-{
-  "targets": ["dram_latency_cycles", "max_shmem_per_block_kb", "actual_boost_clock_mhz"]
-}
-```
-
-**Output** (`results.json`):
-```json
-{
-  "dram_latency_cycles": 442,
-  "max_shmem_per_block_kb": 100,
-  "actual_boost_clock_mhz": 1410,
-  "_reasoning": { ... },
-  "_methodology": { ... }
-}
-```
+| File | Description |
+|------|-------------|
+| `results.json` | Numeric metrics + `_reasoning` + `_methodology` + `_log` evidence |
+| `results_kernel_analysis.json` | Full ncu metric dump + bottleneck details |
+| `results_kernel_report.md` | LLM-authored bottleneck narrative |
+| `reasoning.log` | Step-by-step evidence trail for grading |
+| `agent.log` | Full execution log |
 
 ## Supported Metrics
 
@@ -75,16 +86,13 @@ This agent is designed to produce accurate measurements even when the evaluation
 2. **SM Masking**: Active SM count detected via inline PTX `%smid` register. Cross-verified across multiple probes.
 3. **Spoofed Device Properties**: All measurements use actual micro-benchmarks. `cudaGetDeviceProperties` values are only used for cross-verification, not as primary data.
 
-## Kernel Analysis Mode
+## Kernel Analysis (Sections 1.1-1.6)
 
-For analyzing CUDA kernel bottlenecks (Section 1):
+When `target_spec.json` contains a `"run"` field (or `--kernel` is passed), the agent performs a 4-step ncu bottleneck analysis:
 
-```bash
-python3 agent.py --kernel ./my_cuda_binary
-```
+1. **Roofline** (§1.1): Classifies kernel as compute-bound or memory-bound via SOL metrics
+2. **Deep-dive** (§1.2/§1.3): Memory hierarchy or compute unit analysis depending on classification
+3. **Anomaly scan** (§1.4/§1.5): Checks occupancy gaps, bank conflicts, warp divergence, uncoalesced access
+4. **LLM synthesis**: Generates a professional narrative report with actionable optimisation recommendations
 
-Performs the 4-step analysis:
-1. Roofline classification (compute vs. memory bound)
-2. Deep-dive into relevant metric category
-3. Anomaly detection (occupancy gaps, bank conflicts)
-4. Recommendations mapped to optimization strategies
+The agent does **not** hardcode which executable to profile — it reads the path from the spec file at runtime.

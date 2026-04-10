@@ -12,15 +12,18 @@ such as frequency locking, SM masking, or spoofed device properties.
 
 Architecture:
   1. Reads target_spec.json to determine which metrics to measure
+     and (optionally) which executable to profile for bottleneck analysis
   2. Compiles and runs CUDA micro-benchmark probes
   3. Parses raw output and applies statistical analysis
   4. Cross-verifies results using multiple methods (probes, ncu, nvidia-smi)
   5. Detects anomalies (frequency locking, SM masking)
-  6. Outputs results.json with measurements and reasoning log
+  6. If "run" is specified in target_spec.json, performs kernel bottleneck
+     analysis on that executable via ncu (Sections 1.1-1.6)
+  7. Outputs results.json with measurements, kernel analysis, and reasoning log
 
 Usage:
   python3 agent.py [--target-spec target_spec.json] [--output results.json]
-  python3 agent.py --kernel ./my_cuda_binary  # For kernel analysis
+  python3 agent.py --kernel ./my_cuda_binary  # For standalone kernel analysis
 """
 
 import argparse
@@ -46,28 +49,33 @@ logging.basicConfig(
 logger = logging.getLogger('GPUAgent')
 
 
-def run_hardware_probing(args, reasoning: ReasoningEngine) -> dict:
+def load_target_spec(spec_path: str) -> dict:
+    """Load and validate target_spec.json.
+
+    Returns the parsed dict which may contain:
+      - "targets": list of hardware metric names to probe
+      - "run":     path to a CUDA binary to profile (optional)
+    """
+    if not os.path.exists(spec_path):
+        logger.error(f"Target spec not found: {spec_path}")
+        return {}
+    with open(spec_path, 'r') as f:
+        return json.load(f)
+
+
+def run_hardware_probing(targets: list, args, reasoning: ReasoningEngine) -> dict:
     """
     Phase 1: Hardware Intrinsic Probing
 
-    Reads target_spec.json, runs micro-benchmarks, analyzes results,
-    and outputs results.json.
+    Runs micro-benchmarks for the requested target metrics and returns
+    the measured values.
     """
     logger.info("=" * 60)
     logger.info("Phase 1: Hardware Intrinsic Profiling")
     logger.info("=" * 60)
 
-    # Load target specification
-    if not os.path.exists(args.target_spec):
-        logger.error(f"Target spec not found: {args.target_spec}")
-        return {}
-
-    with open(args.target_spec, 'r') as f:
-        target_spec = json.load(f)
-
-    targets = target_spec.get('targets', [])
     if not targets:
-        logger.warning("No targets specified in target_spec.json")
+        logger.warning("No hardware target metrics requested — skipping Phase 1")
         return {}
 
     logger.info(f"Target metrics ({len(targets)}): {targets}")
@@ -91,18 +99,22 @@ def run_hardware_probing(args, reasoning: ReasoningEngine) -> dict:
     return results
 
 
-def run_kernel_analysis(args, reasoning: ReasoningEngine) -> dict:
+def run_kernel_analysis(binary_path: str, args, reasoning: ReasoningEngine,
+                        kernel_name: str = None) -> dict:
     """
     Phase 2: Kernel Performance Analysis
 
     Uses ncu to profile a CUDA kernel and diagnose bottlenecks
     following the Section 1.1-1.6 analysis methodology.
+
+    The binary_path can come from:
+      - the "run" field in target_spec.json   (evaluation workflow)
+      - the --kernel CLI flag                 (manual / standalone)
     """
     logger.info("=" * 60)
     logger.info("Phase 2: Kernel Bottleneck Analysis")
     logger.info("=" * 60)
-
-    binary_path = args.kernel
+    logger.info(f"Binary to profile: {binary_path}")
 
     # If the user supplied a .cu source file, compile it first
     if binary_path.endswith('.cu'):
@@ -117,7 +129,6 @@ def run_kernel_analysis(args, reasoning: ReasoningEngine) -> dict:
         binary_path = compiled
 
     analyzer = KernelAnalyzer(reasoning=reasoning)
-    kernel_name = getattr(args, 'kernel_name', None)
     analysis = analyzer.analyze(binary_path, kernel_name=kernel_name)
 
     return analysis
@@ -129,10 +140,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Probe hardware metrics specified in target_spec.json
+  # Run the full evaluation workflow (reads targets + executable from spec)
   python3 agent.py --target-spec target_spec.json --output results.json
 
-  # Analyze a specific CUDA kernel for bottlenecks
+  # Analyze a specific CUDA kernel for bottlenecks (standalone)
   python3 agent.py --kernel ./matmul
 
   # Both: probe hardware and analyze kernel
@@ -153,7 +164,7 @@ Examples:
     )
     parser.add_argument(
         '--kernel', type=str, default=None,
-        help='Path to CUDA kernel binary to analyze for bottlenecks'
+        help='Path to CUDA kernel binary to analyze (overrides "run" in spec)'
     )
     parser.add_argument(
         '--kernel-name', type=str, default=None,
@@ -201,16 +212,55 @@ Examples:
     gpu_info = utils.get_gpu_info()
     reasoning.log_step('startup', 'GPU environment detected', data=gpu_info)
 
+    # ------------------------------------------------------------------ #
+    # Load the evaluation spec — this single file drives the entire run   #
+    # ------------------------------------------------------------------ #
+    target_spec = {}
+    if os.path.exists(args.target_spec):
+        target_spec = load_target_spec(args.target_spec)
+        reasoning.log_step(
+            'initialization',
+            f'Loaded target_spec.json: keys={list(target_spec.keys())}',
+            data=target_spec,
+        )
+
+    hw_targets = target_spec.get('targets', [])
+    # The "run" field tells us which executable to profile for Sections 1.1-1.6
+    run_binary = target_spec.get('run', None)
+    # CLI --kernel overrides the spec's "run" field
+    kernel_binary = args.kernel or run_binary
+
+    if kernel_binary:
+        # Resolve relative paths against the spec-file directory first,
+        # then against the script directory.
+        if not os.path.isabs(kernel_binary):
+            spec_dir = os.path.dirname(args.target_spec)
+            candidate = os.path.join(spec_dir, kernel_binary)
+            if os.path.exists(candidate):
+                kernel_binary = candidate
+            else:
+                kernel_binary = os.path.join(script_dir, kernel_binary)
+
+    logger.info(f"Hardware targets: {hw_targets}")
+    logger.info(f"Kernel to profile: {kernel_binary or '(none)'}")
+
     all_results = {}
 
-    # Phase 1: Hardware Probing (if target_spec exists)
-    if os.path.exists(args.target_spec):
-        hw_results = run_hardware_probing(args, reasoning)
+    # ------------------------------------------------------------------ #
+    # Phase 1: Hardware Probing (if any hardware targets requested)       #
+    # ------------------------------------------------------------------ #
+    if hw_targets:
+        hw_results = run_hardware_probing(hw_targets, args, reasoning)
         all_results.update(hw_results)
 
-    # Phase 2: Kernel Analysis (if kernel binary specified)
-    if args.kernel:
-        kernel_analysis = run_kernel_analysis(args, reasoning)
+    # ------------------------------------------------------------------ #
+    # Phase 2: Kernel Analysis (from spec "run" or CLI --kernel)          #
+    # ------------------------------------------------------------------ #
+    if kernel_binary:
+        kernel_analysis = run_kernel_analysis(
+            kernel_binary, args, reasoning,
+            kernel_name=args.kernel_name,
+        )
         # Save kernel analysis to a separate JSON file
         analysis_path = args.output.replace('.json', '_kernel_analysis.json')
         with open(analysis_path, 'w') as f:

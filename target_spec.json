@@ -10,5 +10,6 @@
         "max_shmem_per_block_kb",
         "bank_conflict_penalty_cycles",
         "num_active_sms"
-    ]
+    ],
+    "run": "build/kernels/matmul_naive"
 }

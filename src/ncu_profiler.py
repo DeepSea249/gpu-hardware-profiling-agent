@@ -54,10 +54,6 @@ class NCUProfiler:
     DIVERGENCE_METRICS = [
         'smsp__sass_thread_inst_executed_per_inst_executed.ratio',
     ]
-    # Warp divergence metrics
-    DIVERGENCE_METRICS = [
-        'smsp__sass_thread_inst_executed_per_inst_executed.ratio',
-    ]
 
     ALL_ANALYSIS_METRICS = (
         ROOFLINE_METRICS + MEMORY_METRICS + COMPUTE_METRICS +
