@@ -1,0 +1,163 @@
+"""
+LLM Client - Alibaba Cloud Bailian (DashScope) API integration.
+
+Provides a robust LLMClient class that communicates with the DashScope
+OpenAI-compatible endpoint. Features automatic retry with exponential
+backoff for transient failures and rate-limit handling.
+
+Usage:
+    from src.llm_client import LLMClient
+
+    client = LLMClient()  # loads DASHSCOPE_API_KEY from .env
+    answer = client.generate_reasoning(
+        system_prompt="You are a GPU performance expert.",
+        user_prompt="Explain shared memory bank conflicts.",
+    )
+"""
+
+import os
+import logging
+from pathlib import Path
+
+from dotenv import load_dotenv
+from openai import OpenAI, APITimeoutError, APIConnectionError, RateLimitError
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log,
+)
+
+logger = logging.getLogger("GPUAgent.LLMClient")
+
+# Load .env from the project root (parent of src/)
+_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(_ENV_PATH)
+
+# Transient exceptions that warrant a retry
+_RETRYABLE = (APITimeoutError, APIConnectionError, RateLimitError)
+
+
+class LLMClient:
+    """DashScope LLM client with retry & streaming support."""
+
+    DEFAULT_MODEL = "glm-5"
+    BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str | None = None,
+        enable_thinking: bool = True,
+    ):
+        resolved_key = api_key or os.getenv("DASHSCOPE_API_KEY")
+        if not resolved_key:
+            raise ValueError(
+                "DASHSCOPE_API_KEY is not set. "
+                "Put it in .env or pass api_key= explicitly."
+            )
+
+        self._client = OpenAI(api_key=resolved_key, base_url=self.BASE_URL)
+        self.model = model or self.DEFAULT_MODEL
+        self.enable_thinking = enable_thinking
+
+    # ------------------------------------------------------------------ #
+    #  Core API – with automatic retry (max 3, exponential backoff 2-8s)  #
+    # ------------------------------------------------------------------ #
+    @retry(
+        retry=retry_if_exception_type(_RETRYABLE),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=8),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
+    def generate_reasoning(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> str:
+        """
+        Send a chat completion request and return the assistant's final
+        answer as a plain string.
+
+        Internally uses streaming so that the thinking / answer tokens
+        are printed in real-time when log-level is DEBUG.
+
+        Args:
+            system_prompt: The system-level instruction.
+            user_prompt:   The user query.
+
+        Returns:
+            The full answer text (excluding the hidden thinking trace).
+        """
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        extra_body = {}
+        if self.enable_thinking:
+            extra_body["enable_thinking"] = True
+
+        stream = self._client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            extra_body=extra_body if extra_body else None,
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+
+        reasoning_content = ""
+        answer_content = ""
+
+        for chunk in stream:
+            if not chunk.choices:
+                # Final chunk carries token usage only
+                if chunk.usage:
+                    logger.debug("Token usage: %s", chunk.usage)
+                continue
+
+            delta = chunk.choices[0].delta
+
+            if (
+                hasattr(delta, "reasoning_content")
+                and delta.reasoning_content is not None
+            ):
+                reasoning_content += delta.reasoning_content
+                logger.debug("%s", delta.reasoning_content)
+
+            if hasattr(delta, "content") and delta.content:
+                answer_content += delta.content
+
+        logger.info(
+            "LLM call complete – reasoning: %d chars, answer: %d chars",
+            len(reasoning_content),
+            len(answer_content),
+        )
+        return answer_content
+
+    # ------------------------------------------------------------------ #
+    #  Convenience wrappers                                               #
+    # ------------------------------------------------------------------ #
+    def analyze_metrics(self, metrics_json: str) -> str:
+        """Ask the LLM to interpret GPU profiling metrics."""
+        return self.generate_reasoning(
+            system_prompt=(
+                "You are an expert GPU performance engineer. "
+                "Analyze the following Nsight Compute metrics and identify "
+                "the primary bottleneck. Be precise and cite metric names."
+            ),
+            user_prompt=metrics_json,
+        )
+
+    def explain_anomaly(self, anomaly_description: str) -> str:
+        """Ask the LLM to explain a detected hardware anomaly."""
+        return self.generate_reasoning(
+            system_prompt=(
+                "You are a GPU hardware expert. Explain the following "
+                "anomaly detected during micro-benchmarking and suggest "
+                "possible root causes."
+            ),
+            user_prompt=anomaly_description,
+        )

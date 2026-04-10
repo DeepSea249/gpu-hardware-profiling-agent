@@ -1,13 +1,13 @@
-2026-04-10 06:58:04,834 [INFO] GPUAgent: ============================================================
-2026-04-10 06:58:04,834 [INFO] GPUAgent: GPU Hardware Intrinsic Profiling Agent
-2026-04-10 06:58:04,834 [INFO] GPUAgent: ============================================================
-2026-04-10 06:58:04,834 [INFO] GPUAgent: Probe directory: /root/mlsys_project/probes
-2026-04-10 06:58:04,834 [INFO] GPUAgent: Build directory: /root/mlsys_project/build
-2026-04-10 06:58:04,834 [INFO] GPUAgent: Target spec: /root/mlsys_project/target_spec.json
-2026-04-10 06:58:04,834 [INFO] GPUAgent: Output: /root/mlsys_project/results.json
-2026-04-10 06:58:04,834 [INFO] GPUAgent.Reasoning: [startup] Agent starting - detecting environment
-2026-04-10 06:58:05,266 [INFO] GPUAgent.Reasoning: [startup] GPU environment detected
-2026-04-10 06:58:05,266 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:14,393 [INFO] GPUAgent: ============================================================
+2026-04-10 08:47:14,393 [INFO] GPUAgent: GPU Hardware Intrinsic Profiling Agent
+2026-04-10 08:47:14,393 [INFO] GPUAgent: ============================================================
+2026-04-10 08:47:14,393 [INFO] GPUAgent: Probe directory: /root/mlsys_project/probes
+2026-04-10 08:47:14,393 [INFO] GPUAgent: Build directory: /root/mlsys_project/build
+2026-04-10 08:47:14,393 [INFO] GPUAgent: Target spec: /root/mlsys_project/target_spec.json
+2026-04-10 08:47:14,393 [INFO] GPUAgent: Output: /root/mlsys_project/results.json
+2026-04-10 08:47:14,393 [INFO] GPUAgent.Reasoning: [startup] Agent starting - detecting environment
+2026-04-10 08:47:14,826 [INFO] GPUAgent.Reasoning: [startup] GPU environment detected
+2026-04-10 08:47:14,826 [INFO] GPUAgent.Reasoning:   Data: {
   "gpu_name": "NVIDIA GeForce RTX 3090",
   "compute_capability": 8.6,
   "total_memory_mib": 24576.0,
@@ -16,17 +16,17 @@
   "current_mem_clock_mhz": 405.0,
   "max_sm_clock_mhz": 2100.0,
   "max_mem_clock_mhz": 9751.0,
-  "temperature_c": 28.0,
-  "power_draw_w": 31.32,
+  "temperature_c": 31.0,
+  "power_draw_w": 32.29,
   "power_limit_w": 350.0,
   "persistence_mode": "Disabled"
 }
-2026-04-10 06:58:05,266 [INFO] GPUAgent: ============================================================
-2026-04-10 06:58:05,266 [INFO] GPUAgent: Phase 1: Hardware Intrinsic Profiling
-2026-04-10 06:58:05,266 [INFO] GPUAgent: ============================================================
-2026-04-10 06:58:05,266 [INFO] GPUAgent: Target metrics (10): ['l1_latency_cycles', 'l2_latency_cycles', 'dram_latency_cycles', 'l2_cache_size_kb', 'max_global_bandwidth_gbps', 'max_shmem_bandwidth_gbps', 'actual_boost_clock_mhz', 'max_shmem_per_block_kb', 'bank_conflict_penalty_cycles', 'num_active_sms']
-2026-04-10 06:58:05,266 [INFO] GPUAgent.Reasoning: [initialization] Loaded target_spec.json with 10 metrics
-2026-04-10 06:58:05,266 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:14,826 [INFO] GPUAgent: ============================================================
+2026-04-10 08:47:14,827 [INFO] GPUAgent: Phase 1: Hardware Intrinsic Profiling
+2026-04-10 08:47:14,827 [INFO] GPUAgent: ============================================================
+2026-04-10 08:47:14,827 [INFO] GPUAgent: Target metrics (10): ['l1_latency_cycles', 'l2_latency_cycles', 'dram_latency_cycles', 'l2_cache_size_kb', 'max_global_bandwidth_gbps', 'max_shmem_bandwidth_gbps', 'actual_boost_clock_mhz', 'max_shmem_per_block_kb', 'bank_conflict_penalty_cycles', 'num_active_sms']
+2026-04-10 08:47:14,827 [INFO] GPUAgent.Reasoning: [initialization] Loaded target_spec.json with 10 metrics
+2026-04-10 08:47:14,827 [INFO] GPUAgent.Reasoning:   Data: {
   "targets": [
     "l1_latency_cycles",
     "l2_latency_cycles",
@@ -40,10 +40,10 @@
     "num_active_sms"
   ]
 }
-2026-04-10 06:58:05,267 [INFO] GPUAgent.Reasoning: [planning] Planning probes for 10 target metrics: ['l1_latency_cycles', 'l2_latency_cycles', 'dram_latency_cycles', 'l2_cache_size_kb', 'max_global_bandwidth_gbps', 'max_shmem_bandwidth_gbps', 'actual_boost_clock_mhz', 'max_shmem_per_block_kb', 'bank_conflict_penalty_cycles', 'num_active_sms']
-2026-04-10 06:58:05,267 [INFO] GPUAgent.Reasoning: [environment] Detecting GPU environment
-2026-04-10 06:58:05,612 [INFO] GPUAgent.Reasoning: [environment] GPU info from nvidia-smi
-2026-04-10 06:58:05,612 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:14,827 [INFO] GPUAgent.Reasoning: [planning] Planning probes for 10 target metrics: ['l1_latency_cycles', 'l2_latency_cycles', 'dram_latency_cycles', 'l2_cache_size_kb', 'max_global_bandwidth_gbps', 'max_shmem_bandwidth_gbps', 'actual_boost_clock_mhz', 'max_shmem_per_block_kb', 'bank_conflict_penalty_cycles', 'num_active_sms']
+2026-04-10 08:47:14,827 [INFO] GPUAgent.Reasoning: [environment] Detecting GPU environment
+2026-04-10 08:47:15,248 [INFO] GPUAgent.Reasoning: [environment] GPU info from nvidia-smi
+2026-04-10 08:47:15,248 [INFO] GPUAgent.Reasoning:   Data: {
   "gpu_name": "NVIDIA GeForce RTX 3090",
   "compute_capability": 8.6,
   "total_memory_mib": 24576.0,
@@ -52,66 +52,109 @@
   "current_mem_clock_mhz": 405.0,
   "max_sm_clock_mhz": 2100.0,
   "max_mem_clock_mhz": 9751.0,
-  "temperature_c": 28.0,
-  "power_draw_w": 31.44,
+  "temperature_c": 31.0,
+  "power_draw_w": 32.16,
   "power_limit_w": 350.0,
   "persistence_mode": "Disabled"
 }
-2026-04-10 06:58:05,612 [INFO] GPUAgent.Reasoning: [planning] Will run 5 probes: ['bandwidth_probe', 'bank_conflict_probe', 'clock_probe', 'latency_probe', 'shmem_limit_probe']
-2026-04-10 06:58:05,612 [INFO] GPUAgent.Reasoning: [compilation] Compiling CUDA micro-benchmarks
-2026-04-10 06:58:05,613 [INFO] GPUAgent.ProbeManager: Compiling bandwidth_probe: /usr/local/cuda/bin/nvcc -O3 -lineinfo -arch=native -o /root/mlsys_project/build/bandwidth_probe /root/mlsys_project/probes/bandwidth_probe.cu
-2026-04-10 06:58:07,131 [INFO] GPUAgent.ProbeManager: Successfully compiled bandwidth_probe with -arch=native
-2026-04-10 06:58:07,131 [INFO] GPUAgent.Reasoning: [compilation] Compiled bandwidth_probe successfully
-2026-04-10 06:58:07,131 [INFO] GPUAgent.ProbeManager: Compiling bank_conflict_probe: /usr/local/cuda/bin/nvcc -O3 -lineinfo -arch=native -o /root/mlsys_project/build/bank_conflict_probe /root/mlsys_project/probes/bank_conflict_probe.cu
-2026-04-10 06:58:08,494 [INFO] GPUAgent.ProbeManager: Successfully compiled bank_conflict_probe with -arch=native
-2026-04-10 06:58:08,494 [INFO] GPUAgent.Reasoning: [compilation] Compiled bank_conflict_probe successfully
-2026-04-10 06:58:08,494 [INFO] GPUAgent.ProbeManager: Compiling clock_probe: /usr/local/cuda/bin/nvcc -O3 -lineinfo -arch=native -o /root/mlsys_project/build/clock_probe /root/mlsys_project/probes/clock_probe.cu
-2026-04-10 06:58:09,852 [INFO] GPUAgent.ProbeManager: Successfully compiled clock_probe with -arch=native
-2026-04-10 06:58:09,852 [INFO] GPUAgent.Reasoning: [compilation] Compiled clock_probe successfully
-2026-04-10 06:58:09,852 [INFO] GPUAgent.ProbeManager: Compiling latency_probe: /usr/local/cuda/bin/nvcc -O3 -lineinfo -arch=native -o /root/mlsys_project/build/latency_probe /root/mlsys_project/probes/latency_probe.cu
-2026-04-10 06:58:11,195 [INFO] GPUAgent.ProbeManager: Successfully compiled latency_probe with -arch=native
-2026-04-10 06:58:11,195 [INFO] GPUAgent.Reasoning: [compilation] Compiled latency_probe successfully
-2026-04-10 06:58:11,195 [INFO] GPUAgent.ProbeManager: Compiling shmem_limit_probe: /usr/local/cuda/bin/nvcc -O3 -lineinfo -arch=native -o /root/mlsys_project/build/shmem_limit_probe /root/mlsys_project/probes/shmem_limit_probe.cu
-2026-04-10 06:58:12,477 [INFO] GPUAgent.ProbeManager: Successfully compiled shmem_limit_probe with -arch=native
-2026-04-10 06:58:12,477 [INFO] GPUAgent.Reasoning: [compilation] Compiled shmem_limit_probe successfully
-2026-04-10 06:58:12,477 [INFO] GPUAgent.Reasoning: [execution] Running clock_probe...
-2026-04-10 06:58:12,478 [INFO] GPUAgent.ProbeManager: Running probe: /root/mlsys_project/build/clock_probe
-2026-04-10 06:58:16,902 [INFO] GPUAgent.ProbeManager: Probe clock_probe completed successfully (643 bytes output)
-2026-04-10 06:58:16,902 [INFO] GPUAgent.Reasoning: [execution] clock_probe completed (643 bytes output)
-2026-04-10 06:58:16,904 [INFO] GPUAgent.Reasoning: [parsing] Parsed clock_probe: 8 data points
-2026-04-10 06:58:16,904 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:15,249 [INFO] GPUAgent.Reasoning: [planning] Will run 5 probes: ['bandwidth_probe', 'bank_conflict_probe', 'clock_probe', 'latency_probe', 'shmem_limit_probe']
+2026-04-10 08:47:15,249 [INFO] GPUAgent.Reasoning: [compilation] Compiling CUDA micro-benchmarks
+2026-04-10 08:47:15,249 [INFO] GPUAgent.ProbeManager: Compiling bandwidth_probe: /usr/local/cuda/bin/nvcc -O3 -lineinfo -arch=native -o /root/mlsys_project/build/bandwidth_probe /root/mlsys_project/probes/bandwidth_probe.cu
+2026-04-10 08:47:16,819 [INFO] GPUAgent.ProbeManager: Successfully compiled bandwidth_probe with -arch=native
+2026-04-10 08:47:16,819 [INFO] GPUAgent.Reasoning: [compilation] Compiled bandwidth_probe successfully
+2026-04-10 08:47:16,819 [INFO] GPUAgent.ProbeManager: Compiling bank_conflict_probe: /usr/local/cuda/bin/nvcc -O3 -lineinfo -arch=native -o /root/mlsys_project/build/bank_conflict_probe /root/mlsys_project/probes/bank_conflict_probe.cu
+2026-04-10 08:47:18,210 [INFO] GPUAgent.ProbeManager: Successfully compiled bank_conflict_probe with -arch=native
+2026-04-10 08:47:18,210 [INFO] GPUAgent.Reasoning: [compilation] Compiled bank_conflict_probe successfully
+2026-04-10 08:47:18,210 [INFO] GPUAgent.ProbeManager: Compiling clock_probe: /usr/local/cuda/bin/nvcc -O3 -lineinfo -arch=native -o /root/mlsys_project/build/clock_probe /root/mlsys_project/probes/clock_probe.cu
+2026-04-10 08:47:19,594 [INFO] GPUAgent.ProbeManager: Successfully compiled clock_probe with -arch=native
+2026-04-10 08:47:19,594 [INFO] GPUAgent.Reasoning: [compilation] Compiled clock_probe successfully
+2026-04-10 08:47:19,594 [INFO] GPUAgent.ProbeManager: Compiling latency_probe: /usr/local/cuda/bin/nvcc -O3 -lineinfo -arch=native -o /root/mlsys_project/build/latency_probe /root/mlsys_project/probes/latency_probe.cu
+2026-04-10 08:47:20,971 [INFO] GPUAgent.ProbeManager: Successfully compiled latency_probe with -arch=native
+2026-04-10 08:47:20,971 [INFO] GPUAgent.Reasoning: [compilation] Compiled latency_probe successfully
+2026-04-10 08:47:20,971 [INFO] GPUAgent.ProbeManager: Compiling shmem_limit_probe: /usr/local/cuda/bin/nvcc -O3 -lineinfo -arch=native -o /root/mlsys_project/build/shmem_limit_probe /root/mlsys_project/probes/shmem_limit_probe.cu
+2026-04-10 08:47:22,278 [INFO] GPUAgent.ProbeManager: Successfully compiled shmem_limit_probe with -arch=native
+2026-04-10 08:47:22,278 [INFO] GPUAgent.Reasoning: [compilation] Compiled shmem_limit_probe successfully
+2026-04-10 08:47:22,278 [INFO] GPUAgent.Reasoning: [execution] Running clock_probe...
+2026-04-10 08:47:22,278 [INFO] GPUAgent.ProbeManager: Running probe: /root/mlsys_project/build/clock_probe
+2026-04-10 08:47:26,734 [INFO] GPUAgent.ProbeManager: Probe clock_probe completed successfully (643 bytes output)
+2026-04-10 08:47:26,734 [INFO] GPUAgent.Reasoning: [execution] clock_probe completed (643 bytes output)
+2026-04-10 08:47:26,735 [INFO] GPUAgent.Reasoning: [parsing] Parsed clock_probe: 8 data points
+2026-04-10 08:47:26,735 [INFO] GPUAgent.Reasoning:   Data: {
   "trials": [
     {
-      "cycles": 1350000352,
-      "elapsed_ms": 676.9019,
-      "clock_mhz": 1994.38
+      "cycles": 1350000351,
+      "elapsed_ms": 682.0331,
+      "clock_mhz": 1979.38
     },
     {
-      "cycles": 1350000363,
-      "elapsed_ms": 676.9137,
-      "clock_mhz": 1994.35
+      "cycles": 1350000364,
+      "elapsed_ms": 682.0455,
+      "clock_mhz": 1979.34
     },
     {
-      "cycles": 1350000353,
-      "elapsed_ms": 676.9039,
-      "clock_mhz": 1994.38
+      "cycles": 1350334734,
+      "elapsed_ms": 682.2037,
+      "clock_mhz": 1979.37
     },
     {
-      "cycles": 1350000365,
-      "elapsed_ms": 680.8531,
-      "clock_mhz": 1982.81
+      "cycles": 1350000364,
+      "elapsed_ms": 682.0319,
+      "clock_mhz": 1979.38
     },
     {
-      "cycles": 1350000352,
-      "elapsed_ms": 682.0294,
+      "cycles": 1350000351,
+      "elapsed_ms": 682.03,
       "clock_mhz": 1979.39
- 
-2026-04-10 06:58:16,904 [INFO] GPUAgent.Reasoning: [execution] Running bank_conflict_probe...
-2026-04-10 06:58:16,904 [INFO] GPUAgent.ProbeManager: Running probe: /root/mlsys_project/build/bank_conflict_probe
-2026-04-10 06:58:17,423 [INFO] GPUAgent.ProbeManager: Probe bank_conflict_probe completed successfully (663 bytes output)
-2026-04-10 06:58:17,423 [INFO] GPUAgent.Reasoning: [execution] bank_conflict_probe completed (663 bytes output)
-2026-04-10 06:58:17,424 [INFO] GPUAgent.Reasoning: [parsing] Parsed bank_conflict_probe: 4 data points
-2026-04-10 06:58:17,424 [INFO] GPUAgent.Reasoning:   Data: {
+   
+2026-04-10 08:47:26,735 [INFO] GPUAgent.Reasoning: [execution] Running latency_probe...
+2026-04-10 08:47:26,736 [INFO] GPUAgent.ProbeManager: Running probe: /root/mlsys_project/build/latency_probe
+2026-04-10 08:47:31,090 [INFO] GPUAgent.ProbeManager: Probe latency_probe completed successfully (1899 bytes output)
+2026-04-10 08:47:31,091 [INFO] GPUAgent.Reasoning: [execution] latency_probe completed (1899 bytes output)
+2026-04-10 08:47:31,091 [INFO] GPUAgent.Reasoning: [parsing] Parsed latency_probe: 9 data points
+2026-04-10 08:47:31,092 [INFO] GPUAgent.Reasoning:   Data: {
+  "data_points": [
+    {
+      "size_bytes": 1024,
+      "avg_cycles": 38.07,
+      "median_cycles": 38.07,
+      "trimmed_mean": 38.07
+    },
+    {
+      "size_bytes": 2048,
+      "avg_cycles": 38.14,
+      "median_cycles": 38.14,
+      "trimmed_mean": 38.14
+    },
+    {
+      "size_bytes": 4096,
+      "avg_cycles": 38.27,
+      "median_cycles": 38.27,
+      "trimmed_mean": 38.27
+    },
+    {
+      "size_bytes": 8192,
+      "avg_cycles": 38.55,
+      "median_cycles": 38.55,
+      "trimmed_mea
+2026-04-10 08:47:31,092 [INFO] GPUAgent.Reasoning: [execution] Running shmem_limit_probe...
+2026-04-10 08:47:31,092 [INFO] GPUAgent.ProbeManager: Running probe: /root/mlsys_project/build/shmem_limit_probe
+2026-04-10 08:47:31,360 [INFO] GPUAgent.ProbeManager: Probe shmem_limit_probe completed successfully (284 bytes output)
+2026-04-10 08:47:31,361 [INFO] GPUAgent.Reasoning: [execution] shmem_limit_probe completed (284 bytes output)
+2026-04-10 08:47:31,362 [INFO] GPUAgent.Reasoning: [parsing] Parsed shmem_limit_probe: 6 data points
+2026-04-10 08:47:31,362 [INFO] GPUAgent.Reasoning:   Data: {
+  "default_shmem_bytes": 49152,
+  "extended_shmem_bytes": 101376,
+  "max_shmem_bytes": 101376,
+  "max_shmem_kb": 99,
+  "reported_shmem_per_block": 49152,
+  "reported_shmem_per_sm": 102400
+}
+2026-04-10 08:47:31,362 [INFO] GPUAgent.Reasoning: [execution] Running bank_conflict_probe...
+2026-04-10 08:47:31,362 [INFO] GPUAgent.ProbeManager: Running probe: /root/mlsys_project/build/bank_conflict_probe
+2026-04-10 08:47:31,866 [INFO] GPUAgent.ProbeManager: Probe bank_conflict_probe completed successfully (663 bytes output)
+2026-04-10 08:47:31,866 [INFO] GPUAgent.Reasoning: [execution] bank_conflict_probe completed (663 bytes output)
+2026-04-10 08:47:31,867 [INFO] GPUAgent.Reasoning: [parsing] Parsed bank_conflict_probe: 4 data points
+2026-04-10 08:47:31,867 [INFO] GPUAgent.Reasoning:   Data: {
   "stride_results": [
     {
       "stride": 1,
@@ -141,160 +184,167 @@
   "penalty_cycles": 62.0,
   "no_conflict_cycles": 45.0,
   "max_conflict_cycles": 107.
-2026-04-10 06:58:17,424 [INFO] GPUAgent.Reasoning: [execution] Running bandwidth_probe...
-2026-04-10 06:58:17,424 [INFO] GPUAgent.ProbeManager: Running probe: /root/mlsys_project/build/bandwidth_probe
-2026-04-10 06:58:17,742 [INFO] GPUAgent.ProbeManager: Probe bandwidth_probe completed successfully (740 bytes output)
-2026-04-10 06:58:17,742 [INFO] GPUAgent.Reasoning: [execution] bandwidth_probe completed (740 bytes output)
-2026-04-10 06:58:17,744 [INFO] GPUAgent.Reasoning: [parsing] Parsed bandwidth_probe: 9 data points
-2026-04-10 06:58:17,744 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:31,867 [INFO] GPUAgent.Reasoning: [execution] Running bandwidth_probe...
+2026-04-10 08:47:31,867 [INFO] GPUAgent.ProbeManager: Running probe: /root/mlsys_project/build/bandwidth_probe
+2026-04-10 08:47:32,191 [INFO] GPUAgent.ProbeManager: Probe bandwidth_probe completed successfully (740 bytes output)
+2026-04-10 08:47:32,192 [INFO] GPUAgent.Reasoning: [execution] bandwidth_probe completed (740 bytes output)
+2026-04-10 08:47:32,193 [INFO] GPUAgent.Reasoning: [parsing] Parsed bandwidth_probe: 9 data points
+2026-04-10 08:47:32,193 [INFO] GPUAgent.Reasoning:   Data: {
   "active_sm_count": 82,
   "global_read_bw": [
     884.43,
     901.46,
-    909.91,
-    893.17
+    910.22,
+    892.25
   ],
   "global_write_bw": [
-    879.68,
+    880.86,
     904.57,
-    909.59,
+    910.22,
     913.55
   ],
   "global_copy_bw": [
-    847.27,
-    857.52,
+    846.17,
+    855.84,
     865.02,
-    866.95
+    867.24
   ],
-  "best_read_bw_gbps": 909.91,
+  "best_read_bw_gbps": 910.22,
   "best_write_bw_gbps": 913.55,
-  "best_copy_bw_gbps": 866.95,
-  "shmem_bw_gbps_per_sm": 844.33,
-  "shmem_bw_gbps_aggregate": 69234.83
+  "best_copy_bw_gbps": 867.24,
+  "shmem_bw_gbps_per_sm": 837.26,
+  "shmem_bw_gbps_aggregate": 68655.15
 }
-2026-04-10 06:58:17,744 [INFO] GPUAgent.Reasoning: [execution] Running latency_probe...
-2026-04-10 06:58:17,744 [INFO] GPUAgent.ProbeManager: Running probe: /root/mlsys_project/build/latency_probe
-2026-04-10 06:58:21,927 [INFO] GPUAgent.ProbeManager: Probe latency_probe completed successfully (1899 bytes output)
-2026-04-10 06:58:21,927 [INFO] GPUAgent.Reasoning: [execution] latency_probe completed (1899 bytes output)
-2026-04-10 06:58:21,927 [INFO] GPUAgent.Reasoning: [parsing] Parsed latency_probe: 9 data points
-2026-04-10 06:58:21,928 [INFO] GPUAgent.Reasoning:   Data: {
-  "data_points": [
-    {
-      "size_bytes": 1024,
-      "avg_cycles": 38.07,
-      "median_cycles": 38.07,
-      "trimmed_mean": 38.07
-    },
-    {
-      "size_bytes": 2048,
-      "avg_cycles": 38.13,
-      "median_cycles": 38.13,
-      "trimmed_mean": 38.13
-    },
-    {
-      "size_bytes": 4096,
-      "avg_cycles": 38.27,
-      "median_cycles": 38.27,
-      "trimmed_mean": 38.27
-    },
-    {
-      "size_bytes": 8192,
-      "avg_cycles": 38.55,
-      "median_cycles": 38.55,
-      "trimmed_mea
-2026-04-10 06:58:21,928 [INFO] GPUAgent.Reasoning: [execution] Running shmem_limit_probe...
-2026-04-10 06:58:21,928 [INFO] GPUAgent.ProbeManager: Running probe: /root/mlsys_project/build/shmem_limit_probe
-2026-04-10 06:58:22,192 [INFO] GPUAgent.ProbeManager: Probe shmem_limit_probe completed successfully (284 bytes output)
-2026-04-10 06:58:22,192 [INFO] GPUAgent.Reasoning: [execution] shmem_limit_probe completed (284 bytes output)
-2026-04-10 06:58:22,193 [INFO] GPUAgent.Reasoning: [parsing] Parsed shmem_limit_probe: 6 data points
-2026-04-10 06:58:22,193 [INFO] GPUAgent.Reasoning:   Data: {
-  "default_shmem_bytes": 49152,
-  "extended_shmem_bytes": 101376,
-  "max_shmem_bytes": 101376,
-  "max_shmem_kb": 99,
-  "reported_shmem_per_block": 49152,
-  "reported_shmem_per_sm": 102400
-}
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning: [result] Metric l1_latency_cycles = 38.07
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:32,193 [INFO] GPUAgent.Reasoning: [result] Metric l1_latency_cycles = 38.07
+2026-04-10 08:47:32,193 [INFO] GPUAgent.Reasoning:   Data: {
   "metric": "l1_latency_cycles",
   "value": 38.07
 }
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning: [result] Metric l2_latency_cycles = 249.68
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:32,193 [INFO] GPUAgent.Reasoning: [result] Metric l2_latency_cycles = 250.36
+2026-04-10 08:47:32,193 [INFO] GPUAgent.Reasoning:   Data: {
   "metric": "l2_latency_cycles",
-  "value": 249.68
+  "value": 250.36
 }
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning: [result] Metric dram_latency_cycles = 514.32
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning: [result] Metric dram_latency_cycles = 515.34
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning:   Data: {
   "metric": "dram_latency_cycles",
-  "value": 514.32
+  "value": 515.34
 }
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning: [result] Metric l2_cache_size_kb = 6144.0
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning: [result] Metric l2_cache_size_kb = 6144.0
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning:   Data: {
   "metric": "l2_cache_size_kb",
   "value": 6144.0
 }
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning: [result] Metric max_global_bandwidth_gbps = 909.91
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning: [result] Metric max_global_bandwidth_gbps = 910.22
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning:   Data: {
   "metric": "max_global_bandwidth_gbps",
-  "value": 909.91
+  "value": 910.22
 }
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning: [result] Metric max_shmem_bandwidth_gbps = 69234.83
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning: [result] Metric max_shmem_bandwidth_gbps = 68655.15
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning:   Data: {
   "metric": "max_shmem_bandwidth_gbps",
-  "value": 69234.83
+  "value": 68655.15
 }
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning: [result] Metric actual_boost_clock_mhz = 1994.35
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning: [result] Metric actual_boost_clock_mhz = 1979.38
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning:   Data: {
   "metric": "actual_boost_clock_mhz",
-  "value": 1994.35
+  "value": 1979.38
 }
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning: [result] Metric max_shmem_per_block_kb = 99
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning: [result] Metric max_shmem_per_block_kb = 99
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning:   Data: {
   "metric": "max_shmem_per_block_kb",
   "value": 99
 }
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning: [result] Metric bank_conflict_penalty_cycles = 62.0
-2026-04-10 06:58:22,194 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning: [result] Metric bank_conflict_penalty_cycles = 62.0
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning:   Data: {
   "metric": "bank_conflict_penalty_cycles",
   "value": 62.0
 }
-2026-04-10 06:58:22,195 [INFO] GPUAgent.Reasoning: [result] Metric num_active_sms = 82
-2026-04-10 06:58:22,195 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning: [result] Metric num_active_sms = 82
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning:   Data: {
   "metric": "num_active_sms",
   "value": 82
 }
-2026-04-10 06:58:22,195 [INFO] GPUAgent.Reasoning: [cross_verify] Phase 4: Cross-verifying measurements
-2026-04-10 06:58:22,195 [INFO] GPUAgent.Reasoning: Cross-verify [clock_frequency]: micro-benchmark (clock64/events)=1994.35 vs cudaGetDeviceProperties=1695.00 -> DISAGREE (dev=15.0%)
-2026-04-10 06:58:22,195 [WARNING] GPUAgent.Reasoning: ANOMALY [FREQ_LOCKING]: Measured GPU clock (1994 MHz) differs significantly from reported (1695 MHz). The GPU may be frequency-locked at a non-standard rate.
-2026-04-10 06:58:22,195 [WARNING] GPUAgent.Reasoning:   Expected: 1695.0, Measured: 1994.35
-2026-04-10 06:58:22,297 [INFO] GPUAgent.Reasoning: Cross-verify [clock_frequency]: micro-benchmark=1994.35 vs nvidia-smi current clock=1995.00 -> AGREE (dev=0.0%)
-2026-04-10 06:58:22,297 [INFO] GPUAgent.Reasoning: Cross-verify [sm_count]: PTX smid probe (clock)=82.00 vs cudaGetDeviceProperties=82.00 -> AGREE (dev=0.0%)
-2026-04-10 06:58:22,297 [INFO] GPUAgent.Reasoning: Cross-verify [sm_count]: PTX smid probe (clock)=82.00 vs PTX smid probe (bandwidth)=82.00 -> AGREE (dev=0.0%)
-2026-04-10 06:58:22,297 [INFO] GPUAgent.Reasoning: Cross-verify [shmem_per_block]: binary search probe=101376.00 vs cudaGetDeviceProperties=49152.00 -> DISAGREE (dev=51.5%)
-2026-04-10 06:58:22,297 [INFO] GPUAgent.Reasoning: [summary] ANOMALY SUMMARY: Detected 1 anomalies
-2026-04-10 06:58:22,297 [INFO] GPUAgent.Reasoning:   Data: {
+2026-04-10 08:47:32,194 [INFO] GPUAgent.Reasoning: [cross_verify] Phase 4: Cross-verifying measurements
+2026-04-10 08:47:32,195 [INFO] GPUAgent.Reasoning: Cross-verify [clock_frequency]: micro-benchmark (clock64/events)=1979.38 vs cudaGetDeviceProperties=1695.00 -> DISAGREE (dev=14.4%)
+2026-04-10 08:47:32,997 [INFO] GPUAgent.Reasoning: LLMClient initialised successfully
+2026-04-10 08:47:34,151 [INFO] httpx: HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-10 08:51:38,283 [INFO] GPUAgent.LLMClient: LLM call complete – reasoning: 23378 chars, answer: 3564 chars
+2026-04-10 08:51:38,283 [WARNING] GPUAgent.Reasoning: ANOMALY [FREQ_LOCKING]: Measured GPU clock (1979 MHz) differs significantly from reported (1695 MHz). The GPU may be frequency-locked at a non-standard rate.
+2026-04-10 08:51:38,283 [WARNING] GPUAgent.Reasoning:   Expected: 1695.0, Measured: 1979.38
+2026-04-10 08:51:38,283 [INFO] GPUAgent.Reasoning:   LLM analysis: Based on the analysis of the provided data and NVIDIA hardware architecture behaviors, here is the diagnosis.
+
+### **Root Cause Determination**
+
+**Most Likely Root Cause:** **Standard GPU Boost Behavior (Unlocked Frequency).**
+The GPU is operating in its standard dynamic frequency scaling mode (GPU 
+2026-04-10 08:51:38,452 [INFO] GPUAgent.Reasoning: Cross-verify [clock_frequency]: micro-benchmark=1979.38 vs nvidia-smi current clock=210.00 -> DISAGREE (dev=89.4%)
+2026-04-10 08:51:38,452 [INFO] GPUAgent.Reasoning: Cross-verify [sm_count]: PTX smid probe (clock)=82.00 vs cudaGetDeviceProperties=82.00 -> AGREE (dev=0.0%)
+2026-04-10 08:51:38,452 [INFO] GPUAgent.Reasoning: Cross-verify [sm_count]: PTX smid probe (clock)=82.00 vs PTX smid probe (bandwidth)=82.00 -> AGREE (dev=0.0%)
+2026-04-10 08:51:38,453 [INFO] GPUAgent.Reasoning: Cross-verify [shmem_per_block]: binary search probe=101376.00 vs cudaGetDeviceProperties=49152.00 -> DISAGREE (dev=51.5%)
+2026-04-10 08:51:41,087 [INFO] httpx: HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-10 08:54:38,150 [INFO] GPUAgent.LLMClient: LLM call complete – reasoning: 18226 chars, answer: 3426 chars
+2026-04-10 08:54:38,150 [WARNING] GPUAgent.Reasoning: ANOMALY [SHMEM_LIMIT_MISMATCH]: Measured max shared memory per block (101376 bytes) differs from API-reported (49152 bytes). The probe successfully enabled opt-in extended shared memory via cudaFuncSetAttribute, or the API is reporting a virtualised/restricted value.
+2026-04-10 08:54:38,151 [WARNING] GPUAgent.Reasoning:   Expected: 49152, Measured: 101376
+2026-04-10 08:54:38,151 [INFO] GPUAgent.Reasoning:   LLM analysis: **Root Cause Analysis**
+
+**Most Likely Root Cause:** Hardware Architecture Mismatch (NVIDIA Ampere GA10x / SM 8.6) vs. Standard API Defaults.
+
+This is **not** a security breach, frequency locking, or virtualisation spoofing. It is a valid hardware capability detection. The "mismatch" occurs because 
+2026-04-10 08:54:38,151 [INFO] GPUAgent.Reasoning: [ncu_cross_verify] Phase 4b: Running ncu cross-verification on lightweight probe
+2026-04-10 08:54:38,151 [INFO] GPUAgent.ProbeManager: Compiling ncu_verify_probe: /usr/local/cuda/bin/nvcc -O3 -lineinfo -arch=native -o /root/mlsys_project/build/ncu_verify_probe /root/mlsys_project/probes/ncu_verify_probe.cu
+2026-04-10 08:54:39,453 [INFO] GPUAgent.ProbeManager: Successfully compiled ncu_verify_probe with -arch=native
+2026-04-10 08:54:40,815 [INFO] GPUAgent.Reasoning: [ncu_cross_verify] ncu reports DRAM throughput utilisation: 93.1%
+2026-04-10 08:54:40,815 [INFO] GPUAgent.Reasoning:   Data: {
+  "ncu_dram_throughput_pct": 93.14,
+  "ncu_dram_bytes": 69102848.0,
+  "ncu_gpu_time_ns": 79392.0
+}
+2026-04-10 08:54:40,815 [INFO] GPUAgent.Reasoning: Cross-verify [global_bandwidth]: micro-benchmark=910.22 vs ncu-implied peak (at 93.1% utilisation)=977.26 -> AGREE (dev=7.4%)
+2026-04-10 08:54:42,062 [INFO] GPUAgent.Reasoning: [ncu_cross_verify] ncu-estimated GPU clock: 1395.0 MHz (under ncu clock-control = base clock)
+2026-04-10 08:54:42,063 [INFO] GPUAgent.Reasoning:   Data: {
+  "ncu_clock_mhz": 1395.0,
+  "ncu_sm_cycles_elapsed": 97503316.66,
+  "ncu_gpu_time_ns": 69894912.0
+}
+2026-04-10 08:54:42,063 [INFO] GPUAgent.Reasoning: Cross-verify [clock_frequency]: micro-benchmark (boost clock)=1979.38 vs ncu profiling (base clock, ncu --clock-control)=1395.00 -> AGREE (dev=29.5%)
+2026-04-10 08:54:42,063 [INFO] GPUAgent.Reasoning: [ncu_cross_verify] Micro-benchmark boost clock (1979 MHz) > ncu base-clock (1395 MHz) → consistent with GPU boost behaviour under sustained workload
+2026-04-10 08:54:42,063 [INFO] GPUAgent.Reasoning: [summary] ANOMALY SUMMARY: Detected 2 anomalies
+2026-04-10 08:54:42,063 [INFO] GPUAgent.Reasoning:   Data: {
   "anomalies": [
-    "FREQ_LOCKING"
+    "FREQ_LOCKING",
+    "SHMEM_LIMIT_MISMATCH"
   ]
 }
-2026-04-10 06:58:22,297 [INFO] GPUAgent.Reasoning: [summary]   - FREQ_LOCKING: Measured GPU clock (1994 MHz) differs significantly from reported (1695 MHz). The GPU may be frequency-locked at a non-standard rate.
-2026-04-10 06:58:22,299 [INFO] GPUAgent: Results written to /root/mlsys_project/results.json
-2026-04-10 06:58:22,300 [INFO] GPUAgent.Reasoning: Reasoning log saved to /root/mlsys_project/reasoning.log
-2026-04-10 06:58:22,301 [INFO] GPUAgent: ============================================================
-2026-04-10 06:58:22,301 [INFO] GPUAgent: FINAL RESULTS
-2026-04-10 06:58:22,301 [INFO] GPUAgent: ============================================================
-2026-04-10 06:58:22,301 [INFO] GPUAgent:   l1_latency_cycles: 38.1
-2026-04-10 06:58:22,301 [INFO] GPUAgent:   l2_latency_cycles: 249.7
-2026-04-10 06:58:22,301 [INFO] GPUAgent:   dram_latency_cycles: 514.3
-2026-04-10 06:58:22,301 [INFO] GPUAgent:   l2_cache_size_kb: 6144.0
-2026-04-10 06:58:22,301 [INFO] GPUAgent:   max_global_bandwidth_gbps: 909.91
-2026-04-10 06:58:22,301 [INFO] GPUAgent:   max_shmem_bandwidth_gbps: 69234.83
-2026-04-10 06:58:22,301 [INFO] GPUAgent:   actual_boost_clock_mhz: 1994.3
-2026-04-10 06:58:22,301 [INFO] GPUAgent:   max_shmem_per_block_kb: 99
-2026-04-10 06:58:22,301 [INFO] GPUAgent:   bank_conflict_penalty_cycles: 62.0
-2026-04-10 06:58:22,301 [INFO] GPUAgent:   num_active_sms: 82
-2026-04-10 06:58:22,301 [INFO] GPUAgent: ============================================================
-2026-04-10 06:58:22,301 [INFO] GPUAgent: Agent finished successfully.
-2026-04-10 06:58:22,301 [INFO] GPUAgent: ============================================================
+2026-04-10 08:54:42,063 [INFO] GPUAgent.Reasoning: [summary]   - FREQ_LOCKING: Measured GPU clock (1979 MHz) differs significantly from reported (1695 MHz). The GPU may be frequency-locked at a non-standard rate.
+2026-04-10 08:54:42,063 [INFO] GPUAgent.Reasoning: [summary]   - SHMEM_LIMIT_MISMATCH: Measured max shared memory per block (101376 bytes) differs from API-reported (49152 bytes). The probe successfully enabled opt-in extended shared memory via cudaFuncSetAttribute, or the API is reporting a virtualised/restricted value.
+2026-04-10 08:54:42,063 [INFO] GPUAgent.Reasoning: [llm_synthesis] Generating LLM final analysis...
+2026-04-10 08:54:52,337 [INFO] httpx: HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 500 Internal Server Error"
+2026-04-10 08:54:52,338 [INFO] openai._base_client: Retrying request to /chat/completions in 0.412731 seconds
+2026-04-10 08:55:08,598 [INFO] httpx: HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-10 08:56:36,497 [INFO] GPUAgent.LLMClient: LLM call complete – reasoning: 7056 chars, answer: 2308 chars
+2026-04-10 08:56:37,649 [INFO] httpx: HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-10 08:57:47,764 [INFO] GPUAgent.LLMClient: LLM call complete – reasoning: 6318 chars, answer: 1778 chars
+2026-04-10 08:57:47,764 [INFO] GPUAgent.Reasoning: [llm_synthesis] LLM-authored _reasoning and _methodology generated
+2026-04-10 08:57:47,764 [INFO] GPUAgent.Reasoning:   Data: {
+  "reasoning_length": 2308,
+  "methodology_length": 1778
+}
+2026-04-10 08:57:47,766 [INFO] GPUAgent: Results written to /root/mlsys_project/results.json
+2026-04-10 08:57:47,769 [INFO] GPUAgent.Reasoning: Reasoning log saved to /root/mlsys_project/reasoning.log
+2026-04-10 08:57:47,769 [INFO] GPUAgent: ============================================================
+2026-04-10 08:57:47,769 [INFO] GPUAgent: FINAL RESULTS
+2026-04-10 08:57:47,769 [INFO] GPUAgent: ============================================================
+2026-04-10 08:57:47,769 [INFO] GPUAgent:   l1_latency_cycles: 38.1
+2026-04-10 08:57:47,769 [INFO] GPUAgent:   l2_latency_cycles: 250.4
+2026-04-10 08:57:47,769 [INFO] GPUAgent:   dram_latency_cycles: 515.3
+2026-04-10 08:57:47,769 [INFO] GPUAgent:   l2_cache_size_kb: 6144.0
+2026-04-10 08:57:47,769 [INFO] GPUAgent:   max_global_bandwidth_gbps: 910.22
+2026-04-10 08:57:47,769 [INFO] GPUAgent:   max_shmem_bandwidth_gbps: 68655.15
+2026-04-10 08:57:47,769 [INFO] GPUAgent:   actual_boost_clock_mhz: 1979.4
+2026-04-10 08:57:47,769 [INFO] GPUAgent:   max_shmem_per_block_kb: 99
+2026-04-10 08:57:47,769 [INFO] GPUAgent:   bank_conflict_penalty_cycles: 62.0
+2026-04-10 08:57:47,769 [INFO] GPUAgent:   num_active_sms: 82
+2026-04-10 08:57:47,770 [INFO] GPUAgent: ============================================================
+2026-04-10 08:57:47,770 [INFO] GPUAgent: Agent finished successfully.
+2026-04-10 08:57:47,770 [INFO] GPUAgent: ============================================================

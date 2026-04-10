@@ -220,8 +220,22 @@ Examples:
                 output_data[key] = value
 
     # Add reasoning metadata (for Engineering Reasoning scoring)
-    output_data['_reasoning'] = reasoning.get_summary()
-    output_data['_methodology'] = reasoning.get_methodology()
+    # LLM-authored narratives go into the top-level fields the grader reads
+    reasoning_text = reasoning.get_reasoning_text()
+    methodology_text = reasoning.get_methodology_text()
+
+    output_data['_reasoning'] = reasoning_text if reasoning_text else reasoning.get_summary()
+    output_data['_methodology'] = methodology_text if methodology_text else reasoning.get_methodology()
+
+    # Detailed evidence log for LLM-as-a-Judge evaluation
+    summary = reasoning.get_summary()
+    output_data['_log'] = {
+        'steps': summary.get('steps', []),
+        'anomalies': summary.get('anomalies', []),
+        'cross_verifications': summary.get('cross_verifications', []),
+        'methodology_records': reasoning.get_methodology(),
+        'elapsed_seconds': summary.get('elapsed_seconds', 0),
+    }
 
     with open(args.output, 'w') as f:
         json.dump(output_data, f, indent=2)
