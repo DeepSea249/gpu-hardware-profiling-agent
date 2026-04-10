@@ -1,0 +1,144 @@
+{
+  "metrics": {
+    "dram__throughput.avg.pct_of_peak_sustained_elapsed": 28.75,
+    "gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed": 49.63,
+    "l1tex__data_bank_conflicts_pipe_lsu.sum": 1750862.0,
+    "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum": 201326592.0,
+    "sm__maximum_warps_per_active_cycle_pct": 66.67,
+    "sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active": 25.28,
+    "sm__pipe_tensor_op_hmma_cycles_active.avg.pct_of_peak_sustained_active": 13.92,
+    "sm__sass_thread_inst_executed_op_fp32_pred_on.sum": 0.0,
+    "sm__throughput.avg.pct_of_peak_sustained_elapsed": 71.93,
+    "sm__warps_active.avg.pct_of_peak_sustained_active": 65.71
+  },
+  "kernel_info": {
+    "kernel_name": "matmul_tensor_kernel(const __half *, const __half *, float *, int)",
+    "block_size": "(256, 1, 1)",
+    "grid_size": "(128, 64, 1)",
+    "cc": "8.6"
+  },
+  "raw_rows": [
+    {
+      "name": "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+      "value_raw": "28.75",
+      "unit": "%"
+    },
+    {
+      "name": "gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed",
+      "value_raw": "49.63",
+      "unit": "%"
+    },
+    {
+      "name": "l1tex__data_bank_conflicts_pipe_lsu.sum",
+      "value_raw": "1750862",
+      "unit": ""
+    },
+    {
+      "name": "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum",
+      "value_raw": "201326592",
+      "unit": "sector"
+    },
+    {
+      "name": "l2__throughput.avg.pct_of_peak_sustained_elapsed",
+      "value_raw": "n/a",
+      "unit": ""
+    },
+    {
+      "name": "sm__maximum_warps_per_active_cycle_pct",
+      "value_raw": "66.67",
+      "unit": "%"
+    },
+    {
+      "name": "sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active",
+      "value_raw": "25.28",
+      "unit": "%"
+    },
+    {
+      "name": "sm__pipe_tensor_op_hmma_cycles_active.avg.pct_of_peak_sustained_active",
+      "value_raw": "13.92",
+      "unit": "%"
+    },
+    {
+      "name": "sm__sass_thread_inst_executed_op_fp32_pred_on.sum",
+      "value_raw": "0",
+      "unit": "inst"
+    },
+    {
+      "name": "sm__throughput.avg.pct_of_peak_sustained_elapsed",
+      "value_raw": "71.93",
+      "unit": "%"
+    },
+    {
+      "name": "sm__warps_active.avg.pct_of_peak_sustained_active",
+      "value_raw": "65.71",
+      "unit": "%"
+    },
+    {
+      "name": "smsp__sass_thread_inst_executed_per_inst_executed.ratio",
+      "value_raw": "n/a",
+      "unit": ""
+    }
+  ],
+  "roofline": {
+    "compute_utilization_pct": 71.93,
+    "memory_utilization_pct": 49.63,
+    "classification": "compute_bound"
+  },
+  "memory": {
+    "l1_global_load_sectors": 201326592.0,
+    "l2_throughput_pct": 0.0,
+    "dram_throughput_pct": 28.75,
+    "bank_conflicts": 1750862.0
+  },
+  "compute": {
+    "tensor_core_utilization_pct": 13.92,
+    "fma_utilization_pct": 25.28,
+    "fp32_instructions": 0.0
+  },
+  "occupancy": {
+    "theoretical_occupancy_pct": 66.67,
+    "achieved_occupancy_pct": 65.71,
+    "occupancy_gap_pct": 0.960000000000008
+  },
+  "bottlenecks": [
+    {
+      "type": "COMPUTE_BOUND",
+      "severity": "medium",
+      "metric": "sm__throughput.avg.pct_of_peak_sustained_elapsed",
+      "value": 71.93,
+      "recommendation": "Consider algorithmic improvements, precision reduction (FP16/BF16), or Tensor Core utilisation via WMMA/MMA."
+    },
+    {
+      "type": "BANK_CONFLICT",
+      "severity": "high",
+      "metric": "l1tex__data_bank_conflicts_pipe_lsu.sum",
+      "value": 1750862.0,
+      "recommendation": "Shared Memory bank conflicts detected. Adjust indexing with padding (e.g. TILE[N][N+1]) or restructure access so that threads in a warp access distinct banks."
+    },
+    {
+      "type": "EXCESSIVE_GLOBAL_LOADS",
+      "severity": "medium",
+      "metric": "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum",
+      "value": 201326592.0,
+      "recommendation": "Excessive L1 global load sectors (201326592). Check memory access patterns: ensure coalesced access (adjacent threads access adjacent addresses) and consider data prefetching or shared memory caching."
+    }
+  ],
+  "llm_report": "# Kernel Bottleneck Analysis: `matmul_tensor_kernel`\n\n### 1. Kernel Classification\nThe kernel is classified as **compute-bound**. According to the Speed-of-Light (SOL) metrics, the SM Throughput reached **71.9%**, significantly outpacing the Memory Throughput of **49.6%**. This disparity indicates that the pipeline is primarily limited by the execution units rather than the available memory bandwidth. However, as detailed below, this \"compute-bound\" status is a result of inefficient execution rather than optimal arithmetic intensity.\n\n### 2. Primary Bottleneck: Shared Memory Bank Conflicts\nThe critical bottleneck is **shared memory bank conflicts**, flagged as `HIGH` priority with 1,750,862 conflicts recorded.\n\nWhile the kernel is theoretically compute-bound, the 71.9% SOL indicates the SMs are active but not efficiently producing results. This is confirmed by the extremely low **Tensor Core Utilization (13.9%)**. The bank conflicts are causing thread serialization within warps. When multiple threads in a warp access different addresses within the same memory bank, the hardware splits the request into separate transactions, stalling the pipeline.\n\nIn the context of a matrix multiplication kernel, this typically occurs when accessing column-major data in shared memory. For example, a naive access pattern like `val = shared_mem[threadIdx.x][threadIdx.y]` can cause conflicts if the column width is a multiple of the bank size (32).\n\n### 3. Optimisation Recommendations\nTo resolve this, apply the following code modifications:\n\n*   **Shared Memory Padding:** Modify shared memory allocations to avoid bank alignment. Instead of `__shared__ half tile[TILE_SIZE][TILE_SIZE]`, declare it as `__shared__ half tile[TILE_SIZE][TILE_SIZE + 1]`. The padding shifts the starting address of each row, ensuring that column accesses by a warp stride across different banks.\n*   **Vectorized Access:** Use vectorized loads (e.g., `float2` or `uint4`) to reduce the total number of memory transactions and improve coalescing on the global loads (currently seeing excessive L1 sectors).\n*   **Native Tensor Core APIs:** The low Tensor Core usage suggests manual implementation overhead. Replace manual HMMA assembly or naive FP16 loops with the **CUDA WMMA (Warp Matrix Multiply Accumulate) API** or the **CublasLt** library calls. This ensures data is laid out optimally for Tensor Core consumption (fragment loading).\n\n### 4. Secondary Issues\n*   **Excessive Global Loads:** The high count of L1 Global Load Sectors (201M) suggests non-coalesced memory access patterns. Ensure that adjacent threads read adjacent memory addresses (stride-1 access) when loading input tiles from global memory to shared memory.\n*   **Occupancy:** Achieved occupancy (65.7%) is reasonable and not the primary limiter. Optimizing the bank conflicts will naturally improve throughput without requiring further occupancy tuning.",
+  "summary": {
+    "classification": "compute_bound",
+    "compute_sol_pct": 71.93,
+    "memory_sol_pct": 49.63,
+    "primary_bottleneck": "COMPUTE_BOUND",
+    "num_issues": 3,
+    "bottleneck_types": [
+      "COMPUTE_BOUND",
+      "BANK_CONFLICT",
+      "EXCESSIVE_GLOBAL_LOADS"
+    ],
+    "recommendations": [
+      "Consider algorithmic improvements, precision reduction (FP16/BF16), or Tensor Core utilisation via WMMA/MMA.",
+      "Shared Memory bank conflicts detected. Adjust indexing with padding (e.g. TILE[N][N+1]) or restructure access so that threads in a warp access distinct banks.",
+      "Excessive L1 global load sectors (201326592). Check memory access patterns: ensure coalesced access (adjacent threads access adjacent addresses) and consider data prefetching or shared memory caching."
+    ]
+  }
+}

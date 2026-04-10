@@ -1,0 +1,135 @@
+{
+  "metrics": {
+    "dram__throughput.avg.pct_of_peak_sustained_elapsed": 1.51,
+    "gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed": 82.63,
+    "l1tex__data_bank_conflicts_pipe_lsu.sum": 615092.0,
+    "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum": 8388608.0,
+    "sm__maximum_warps_per_active_cycle_pct": 66.67,
+    "sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active": 8.37,
+    "sm__pipe_tensor_op_hmma_cycles_active.avg.pct_of_peak_sustained_active": 0.0,
+    "sm__sass_thread_inst_executed_op_fp32_pred_on.sum": 1073741824.0,
+    "sm__throughput.avg.pct_of_peak_sustained_elapsed": 82.63,
+    "sm__warps_active.avg.pct_of_peak_sustained_active": 66.7
+  },
+  "kernel_info": {
+    "kernel_name": "matmul_tiled_kernel(const float *, const float *, float *, int)",
+    "block_size": "(32, 32, 1)",
+    "grid_size": "(32, 32, 1)",
+    "cc": "8.6"
+  },
+  "raw_rows": [
+    {
+      "name": "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+      "value_raw": "1.51",
+      "unit": "%"
+    },
+    {
+      "name": "gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed",
+      "value_raw": "82.63",
+      "unit": "%"
+    },
+    {
+      "name": "l1tex__data_bank_conflicts_pipe_lsu.sum",
+      "value_raw": "615092",
+      "unit": ""
+    },
+    {
+      "name": "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum",
+      "value_raw": "8388608",
+      "unit": "sector"
+    },
+    {
+      "name": "l2__throughput.avg.pct_of_peak_sustained_elapsed",
+      "value_raw": "n/a",
+      "unit": ""
+    },
+    {
+      "name": "sm__maximum_warps_per_active_cycle_pct",
+      "value_raw": "66.67",
+      "unit": "%"
+    },
+    {
+      "name": "sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active",
+      "value_raw": "8.37",
+      "unit": "%"
+    },
+    {
+      "name": "sm__pipe_tensor_op_hmma_cycles_active.avg.pct_of_peak_sustained_active",
+      "value_raw": "0",
+      "unit": "%"
+    },
+    {
+      "name": "sm__sass_thread_inst_executed_op_fp32_pred_on.sum",
+      "value_raw": "1073741824",
+      "unit": "inst"
+    },
+    {
+      "name": "sm__throughput.avg.pct_of_peak_sustained_elapsed",
+      "value_raw": "82.63",
+      "unit": "%"
+    },
+    {
+      "name": "sm__warps_active.avg.pct_of_peak_sustained_active",
+      "value_raw": "66.70",
+      "unit": "%"
+    },
+    {
+      "name": "smsp__sass_thread_inst_executed_per_inst_executed.ratio",
+      "value_raw": "n/a",
+      "unit": ""
+    }
+  ],
+  "roofline": {
+    "compute_utilization_pct": 82.63,
+    "memory_utilization_pct": 82.63,
+    "classification": "balanced"
+  },
+  "memory": {
+    "l1_global_load_sectors": 8388608.0,
+    "l2_throughput_pct": 0.0,
+    "dram_throughput_pct": 1.51,
+    "bank_conflicts": 615092.0
+  },
+  "compute": {
+    "tensor_core_utilization_pct": 0.0,
+    "fma_utilization_pct": 8.37,
+    "fp32_instructions": 1073741824.0
+  },
+  "occupancy": {
+    "theoretical_occupancy_pct": 66.67,
+    "achieved_occupancy_pct": 66.7,
+    "occupancy_gap_pct": -0.030000000000001137
+  },
+  "bottlenecks": [
+    {
+      "type": "COMPUTE_BOUND",
+      "severity": "medium",
+      "metric": "sm__throughput.avg.pct_of_peak_sustained_elapsed",
+      "value": 82.63,
+      "recommendation": "Consider algorithmic improvements, precision reduction (FP16/BF16), or Tensor Core utilisation via WMMA/MMA."
+    },
+    {
+      "type": "BANK_CONFLICT",
+      "severity": "medium",
+      "metric": "l1tex__data_bank_conflicts_pipe_lsu.sum",
+      "value": 615092.0,
+      "recommendation": "Shared Memory bank conflicts detected. Adjust indexing with padding (e.g. TILE[N][N+1]) or restructure access so that threads in a warp access distinct banks."
+    }
+  ],
+  "llm_report": "# Kernel Performance Analysis: matmul_tiled_kernel\n\n### 1. Compute vs. Memory Bound Classification\nThis kernel is **Compute-Bound**. \n\nThe NVIDIA Nsight Compute metrics report an SM Throughput (Compute SOL) of **82.6%** while the DRAM Throughput is negligible at **1.5%**. According to the roofline model, the kernel sits firmly on the \"compute ridge.\" The low DRAM utilization indicates that the tiled implementation successfully reuses data loaded into the cache, hiding memory latency. The bottleneck has shifted from data movement to the execution pipeline throughput.\n\n### 2. Primary Bottleneck: Shared Memory Bank Conflicts\nWhile the kernel is classified as compute-bound, the low FP32 FMA utilization (**8.4%**) relative to the high SM throughput reveals an inefficiency in the pipeline. The primary culprit is **Shared Memory Bank Conflicts**.\n\nThe profile reports **615,092 bank conflicts**. In a standard matrix multiplication tiling strategy with a block size of `32x32`, shared memory is typically accessed via column-major reads by warps. Since shared memory banks are 4-bytes wide and there are 32 banks, a stride of 32 elements (the matrix width) causes threads in a warp to access the same bank index. This serializes the memory transactions, stalling the pipeline. The high \"SM Throughput\" metric is misleading; it indicates the SM is busy managing these stall cycles (active warps waiting) rather than performing useful arithmetic, resulting in the low FMA throughput.\n\n### 3. Optimisation Recommendations\n\n**A. Eliminate Bank Conflicts (High Priority)**\n*   **Pattern:** The current code likely declares shared memory as `__shared__ float tile[32][32];`.\n*   **Fix:** Apply padding to break the stride-32 access pattern. Declare the array as `__shared__ float tile[32][32 + 1];`. This adds a column of padding, shifting subsequent rows by one bank. This ensures that column-wise accesses by a warp are distributed across different banks, allowing parallel access and removing the serialization stalls.\n\n**B. Utilize Tensor Cores (Architectural Optimization)**\n*   **Observation:** Tensor Core utilization is **0.0%** on Compute Capability 8.6 (Ampere), meaning the kernel relies solely on CUDA cores.\n*   **Fix:** Replace the manual FMA loop with **WMMA (Warp Matrix Multiply Accumulate)** APIs or the **Cublas** library. Tensor Cores can perform matrix operations significantly faster (up to 16x theoretical throughput for FP16 accumulation) than standard FP32 CUDA cores. Even without changing precision, utilizing Tensor Cores is the standard path to peak performance on modern GPUs.\n\n### 4. Secondary Issues\n**Occupancy:** Achieved occupancy is **66.7%**. While not a primary bottleneck given the compute-bound nature, increasing register usage or shared memory allocation (due to padding) could push this lower. However, removing bank conflicts will likely improve the throughput of individual warps, making the lower occupancy less impactful.\n\n**Instruction Mix:** The kernel executes over 1 billion FP32 instructions. If Tensor Cores are implemented, the instruction count would drop drastically, further improving efficiency.",
+  "summary": {
+    "classification": "balanced",
+    "compute_sol_pct": 82.63,
+    "memory_sol_pct": 82.63,
+    "primary_bottleneck": "COMPUTE_BOUND",
+    "num_issues": 2,
+    "bottleneck_types": [
+      "COMPUTE_BOUND",
+      "BANK_CONFLICT"
+    ],
+    "recommendations": [
+      "Consider algorithmic improvements, precision reduction (FP16/BF16), or Tensor Core utilisation via WMMA/MMA.",
+      "Shared Memory bank conflicts detected. Adjust indexing with padding (e.g. TILE[N][N+1]) or restructure access so that threads in a warp access distinct banks."
+    ]
+  }
+}

@@ -96,14 +96,29 @@ def run_kernel_analysis(args, reasoning: ReasoningEngine) -> dict:
     Phase 2: Kernel Performance Analysis
 
     Uses ncu to profile a CUDA kernel and diagnose bottlenecks
-    following the Section 1 analysis methodology.
+    following the Section 1.1-1.6 analysis methodology.
     """
     logger.info("=" * 60)
     logger.info("Phase 2: Kernel Bottleneck Analysis")
     logger.info("=" * 60)
 
+    binary_path = args.kernel
+
+    # If the user supplied a .cu source file, compile it first
+    if binary_path.endswith('.cu'):
+        from src.probe_manager import ProbeManager
+        pm = ProbeManager(probe_dir=os.path.dirname(binary_path) or '.',
+                          build_dir=args.build_dir)
+        probe_name = os.path.splitext(os.path.basename(binary_path))[0]
+        compiled = pm.compile(probe_name, source_path=binary_path)
+        if not compiled:
+            logger.error(f"Failed to compile {binary_path}")
+            return {'error': f'compilation failed for {binary_path}'}
+        binary_path = compiled
+
     analyzer = KernelAnalyzer(reasoning=reasoning)
-    analysis = analyzer.analyze(args.kernel)
+    kernel_name = getattr(args, 'kernel_name', None)
+    analysis = analyzer.analyze(binary_path, kernel_name=kernel_name)
 
     return analysis
 
@@ -139,6 +154,10 @@ Examples:
     parser.add_argument(
         '--kernel', type=str, default=None,
         help='Path to CUDA kernel binary to analyze for bottlenecks'
+    )
+    parser.add_argument(
+        '--kernel-name', type=str, default=None,
+        help='Specific kernel function name to profile (optional)'
     )
     parser.add_argument(
         '--probe-dir', type=str, default='probes',
@@ -192,11 +211,23 @@ Examples:
     # Phase 2: Kernel Analysis (if kernel binary specified)
     if args.kernel:
         kernel_analysis = run_kernel_analysis(args, reasoning)
-        # Save kernel analysis separately
+        # Save kernel analysis to a separate JSON file
         analysis_path = args.output.replace('.json', '_kernel_analysis.json')
         with open(analysis_path, 'w') as f:
-            json.dump(kernel_analysis, f, indent=2)
+            json.dump(kernel_analysis, f, indent=2, default=str)
         logger.info(f"Kernel analysis saved to {analysis_path}")
+
+        # Include summary in main results
+        summary = kernel_analysis.get('summary', {})
+        all_results['_kernel_analysis'] = summary
+
+        # Save the LLM report as a markdown file
+        llm_report = kernel_analysis.get('llm_report', '')
+        if llm_report:
+            report_path = args.output.replace('.json', '_kernel_report.md')
+            with open(report_path, 'w') as f:
+                f.write(llm_report)
+            logger.info(f"Kernel bottleneck report saved to {report_path}")
 
     # Write final results
     output_data = {}
