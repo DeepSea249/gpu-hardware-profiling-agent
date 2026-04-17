@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-Integration test for the DashScope LLM client.
+Integration test for the LLM client.
 
 Sends a simple GPU-related question and prints the response.
 Run from the project root:
     python3 test_llm.py
+
+Requires the API_KEY environment variable (or .env file) to be set.
 """
 
 import logging
@@ -22,7 +24,7 @@ from src.llm_client import LLMClient
 
 def main():
     print("=" * 60)
-    print(" LLM Client Integration Test (DashScope / glm-5)")
+    print(" LLM Client Integration Test")
     print("=" * 60)
 
     client = LLMClient()

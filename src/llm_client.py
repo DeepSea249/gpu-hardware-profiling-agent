@@ -1,14 +1,22 @@
 """
-LLM Client - Alibaba Cloud Bailian (DashScope) API integration.
+LLM Client — OpenAI-compatible API integration.
 
-Provides a robust LLMClient class that communicates with the DashScope
-OpenAI-compatible endpoint. Features automatic retry with exponential
-backoff for transient failures and rate-limit handling.
+Works with any OpenAI-compatible endpoint (OpenAI, Azure OpenAI,
+Alibaba Cloud DashScope, etc.).  All configuration is via environment
+variables so no credentials are ever hardcoded in source.
+
+Environment variables
+---------------------
+API_KEY       (required) API key / access token.
+LLM_BASE_URL  (optional) Base URL of the OpenAI-compatible endpoint.
+              Default: https://api.openai.com/v1
+LLM_MODEL     (optional) Model name.
+              Default: gpt-4o
 
 Usage:
     from src.llm_client import LLMClient
 
-    client = LLMClient()  # loads DASHSCOPE_API_KEY from .env
+    client = LLMClient()  # reads API_KEY from environment
     answer = client.generate_reasoning(
         system_prompt="You are a GPU performance expert.",
         user_prompt="Explain shared memory bank conflicts.",
@@ -38,29 +46,48 @@ load_dotenv(_ENV_PATH)
 # Transient exceptions that warrant a retry
 _RETRYABLE = (APITimeoutError, APIConnectionError, RateLimitError)
 
+# DashScope host identifier — used to enable DashScope-specific extensions
+_DASHSCOPE_HOST = "dashscope.aliyuncs.com"
+
 
 class LLMClient:
-    """DashScope LLM client with retry & streaming support."""
+    """OpenAI-compatible LLM client with retry & streaming support.
 
-    DEFAULT_MODEL = "glm-5"
-    BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    Configured entirely via environment variables:
+        API_KEY       — API key (also accepts DASHSCOPE_API_KEY as legacy fallback)
+        LLM_BASE_URL  — endpoint base URL (default: https://api.openai.com/v1)
+        LLM_MODEL     — model name        (default: gpt-4o)
+    """
+
+    DEFAULT_MODEL = os.getenv("LLM_MODEL", "gpt-4o")
+    DEFAULT_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
 
     def __init__(
         self,
         api_key: str | None = None,
         model: str | None = None,
+        base_url: str | None = None,
         enable_thinking: bool = True,
     ):
-        resolved_key = api_key or os.getenv("DASHSCOPE_API_KEY")
+        # Primary env var is API_KEY; fall back to the legacy DashScope key
+        resolved_key = (
+            api_key
+            or os.getenv("API_KEY")
+            or os.getenv("DASHSCOPE_API_KEY")
+        )
         if not resolved_key:
             raise ValueError(
-                "DASHSCOPE_API_KEY is not set. "
-                "Put it in .env or pass api_key= explicitly."
+                "No API key found. Set the API_KEY environment variable "
+                "(or put it in .env / pass api_key= explicitly)."
             )
 
-        self._client = OpenAI(api_key=resolved_key, base_url=self.BASE_URL)
+        self._base_url = base_url or self.DEFAULT_BASE_URL
+        self._client = OpenAI(api_key=resolved_key, base_url=self._base_url)
         self.model = model or self.DEFAULT_MODEL
+        # enable_thinking is a DashScope/GLM-specific extension; ignored elsewhere
         self.enable_thinking = enable_thinking
+        # Detect DashScope endpoint to conditionally enable proprietary extensions
+        self._is_dashscope = _DASHSCOPE_HOST in self._base_url
 
     # ------------------------------------------------------------------ #
     #  Core API – with automatic retry (max 3, exponential backoff 2-8s)  #
@@ -96,15 +123,17 @@ class LLMClient:
             {"role": "user", "content": user_prompt},
         ]
 
-        extra_body = {"enable_thinking": self.enable_thinking}
-
-        stream = self._client.chat.completions.create(
+        kwargs: dict = dict(
             model=self.model,
             messages=messages,
-            extra_body=extra_body,
             stream=True,
             stream_options={"include_usage": True},
         )
+        # enable_thinking is a DashScope-specific body extension; omit for standard OpenAI
+        if self._is_dashscope:
+            kwargs["extra_body"] = {"enable_thinking": self.enable_thinking}
+
+        stream = self._client.chat.completions.create(**kwargs)
 
         reasoning_content = ""
         answer_content = ""
@@ -118,7 +147,8 @@ class LLMClient:
 
             delta = chunk.choices[0].delta
 
-            if (
+            # reasoning_content is a DashScope-specific delta attribute
+            if self._is_dashscope and (
                 hasattr(delta, "reasoning_content")
                 and delta.reasoning_content is not None
             ):

@@ -193,9 +193,10 @@ int main(int argc, char** argv) {
     if (num_sms != prop.multiProcessorCount) {
         printf("ANOMALY=SM_MASKING measured=%d reported=%d\n", num_sms, prop.multiProcessorCount);
     }
-    if (deviation_pct < -5.0 || deviation_pct > 5.0) {
-        printf("ANOMALY=FREQ_LOCKING measured=%.0f reported=%.0f\n", median_clock, reported_mhz);
-    }
+    // Note: prop.clockRate is the base/rated clock; under GPU Boost the actual
+    // running frequency can be 20-50%+ higher, which is normal and expected.
+    // A Python-level check against nvidia-smi clocks.max.sm provides the true
+    // boost-aware reference for anomaly detection.
 
     CUDA_CHECK(cudaEventDestroy(start));
     CUDA_CHECK(cudaEventDestroy(stop));

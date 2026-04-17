@@ -238,8 +238,15 @@ Examples:
             candidate = os.path.join(spec_dir, kernel_binary)
             if os.path.exists(candidate):
                 kernel_binary = candidate
+            elif sys.platform == 'win32' and os.path.exists(candidate + '.exe'):
+                kernel_binary = candidate + '.exe'
             else:
                 kernel_binary = os.path.join(script_dir, kernel_binary)
+
+        # On Windows, append .exe if the path has no extension and the .exe exists
+        if sys.platform == 'win32' and not os.path.splitext(kernel_binary)[1]:
+            if not os.path.exists(kernel_binary) and os.path.exists(kernel_binary + '.exe'):
+                kernel_binary = kernel_binary + '.exe'
 
     logger.info(f"Hardware targets: {hw_targets}")
     logger.info(f"Kernel to profile: {kernel_binary or '(none)'}")

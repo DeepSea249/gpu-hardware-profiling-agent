@@ -695,6 +695,11 @@ class HardwareProber:
                 data['reported_shmem_per_sm'] = int(match.group(1))
                 continue
 
+            match = re.match(r'REPORTED_SHMEM_PER_BLOCK_OPTIN=(\d+)', line)
+            if match:
+                data['reported_shmem_per_block_optin'] = int(match.group(1))
+                continue
+
         return data
 
     def _extract_metric(self, target: str) -> Optional[float]:
@@ -865,42 +870,86 @@ class HardwareProber:
         clock_data = self.parsed_data.get('clock_probe', {})
         if clock_data:
             measured_clock = clock_data.get('measured_clock_mhz')
-            reported_clock = clock_data.get('reported_clock_mhz')
+            reported_clock = clock_data.get('reported_clock_mhz')   # base clock
+
+            # Obtain the hardware boost ceiling from nvidia-smi (always done once)
+            smi_clocks = utils.get_nvidia_smi_clocks()
+            max_sm_clock = smi_clocks.get('max_sm_clock_mhz')   # hardware max boost
 
             if measured_clock and reported_clock:
-                deviation = abs(measured_clock - reported_clock) / reported_clock * 100
-                agree = deviation < 10  # 10% tolerance
+                # Use the nvidia-smi max SM clock as the proper reference when
+                # available.  prop.clockRate reports the *base* frequency; under
+                # GPU Boost the running clock is legitimately well above that.
+                reference_clock = max_sm_clock if max_sm_clock else reported_clock
+                reference_label = (
+                    'clocks.max.sm (nvidia-smi)' if max_sm_clock
+                    else 'cudaGetDeviceProperties base clock'
+                )
+
+                deviation = (
+                    abs(measured_clock - reference_clock) / reference_clock * 100
+                )
+                # 10 % tolerance against the hardware-rated max boost clock
+                agree = deviation < 10
 
                 self.reasoning.log_cross_verification(
                     'clock_frequency',
                     'micro-benchmark (clock64/events)',
                     measured_clock,
-                    'cudaGetDeviceProperties',
-                    reported_clock,
+                    reference_label,
+                    reference_clock,
                     agree
                 )
 
                 if not agree:
-                    self.reasoning.log_anomaly(
-                        'FREQ_LOCKING',
-                        f'Measured GPU clock ({measured_clock:.0f} MHz) differs '
-                        f'significantly from reported ({reported_clock:.0f} MHz). '
-                        f'The GPU may be frequency-locked at a non-standard rate.',
-                        expected=reported_clock,
-                        measured=measured_clock,
+                    # FREQ_LOCKING means the clock is *locked away* from its
+                    # natural operating point — not merely at boost.
+                    # Flag only when measured is BELOW the base clock (throttled)
+                    # or significantly above the hardware max (over-clocked).
+                    is_throttled = measured_clock < reported_clock * 0.93
+                    is_overclocked = (
+                        max_sm_clock is not None
+                        and measured_clock > max_sm_clock * 1.10
+                    )
+                    if is_throttled or is_overclocked:
+                        cause = (
+                            'GPU appears throttled below base clock.'
+                            if is_throttled
+                            else 'GPU running above rated max boost clock.'
+                        )
+                        self.reasoning.log_anomaly(
+                            'FREQ_LOCKING',
+                            f'Measured GPU clock ({measured_clock:.0f} MHz) differs '
+                            f'significantly from {reference_label} '
+                            f'({reference_clock:.0f} MHz). {cause}',
+                            expected=reference_clock,
+                            measured=measured_clock,
+                        )
+                    else:
+                        self.reasoning.log_step(
+                            'cross_verify',
+                            f'Clock {measured_clock:.0f} MHz is within normal GPU '
+                            f'Boost range of base {reported_clock:.0f} MHz / '
+                            f'max {reference_clock:.0f} MHz — no anomaly',
+                        )
+                else:
+                    self.reasoning.log_step(
+                        'cross_verify',
+                        f'Clock verified: measured {measured_clock:.0f} MHz ≈ '
+                        f'{reference_label} {reference_clock:.0f} MHz '
+                        f'(deviation {deviation:.1f}%)',
                     )
 
-            # Also check against nvidia-smi
-            smi_clocks = utils.get_nvidia_smi_clocks()
-            smi_clock = smi_clocks.get('current_sm_clock_mhz')
-            if smi_clock and measured_clock:
-                deviation = abs(measured_clock - smi_clock) / max(smi_clock, 1) * 100
+            # Also compare measured vs nvidia-smi current (informational)
+            smi_current = smi_clocks.get('current_sm_clock_mhz')
+            if smi_current and measured_clock:
+                deviation = abs(measured_clock - smi_current) / max(smi_current, 1) * 100
                 self.reasoning.log_cross_verification(
                     'clock_frequency',
                     'micro-benchmark',
                     measured_clock,
                     'nvidia-smi current clock',
-                    smi_clock,
+                    smi_current,
                     deviation < 10
                 )
 
@@ -942,28 +991,52 @@ class HardwareProber:
         # Cross-verify shared memory limit
         shmem_data = self.parsed_data.get('shmem_limit_probe', {})
         measured_shmem = shmem_data.get('max_shmem_bytes')
-        reported_shmem = shmem_data.get('reported_shmem_per_block')
+        reported_shmem = shmem_data.get('reported_shmem_per_block')       # default limit
+        optin_shmem = shmem_data.get('reported_shmem_per_block_optin')    # hw max via opt-in
 
         if measured_shmem and reported_shmem:
+            # The authoritative hardware ceiling is sharedMemPerBlockOptin when
+            # available (sm_70+).  sharedMemPerBlock is only the default soft limit.
+            hw_max = optin_shmem if optin_shmem else reported_shmem
+
+            is_within_hw_max = (measured_shmem <= hw_max * 1.01)
+
             self.reasoning.log_cross_verification(
                 'shmem_per_block',
-                'binary search probe',
+                'binary search probe (extended)',
                 measured_shmem,
-                'cudaGetDeviceProperties',
-                reported_shmem,
-                abs(measured_shmem - reported_shmem) < 1024  # Within 1KB
+                'cudaGetDeviceProperties sharedMemPerBlockOptin' if optin_shmem
+                else 'cudaGetDeviceProperties sharedMemPerBlock',
+                hw_max,
+                is_within_hw_max,
             )
 
-            # Flag shmem anomaly if measured differs significantly from reported
-            if abs(measured_shmem - reported_shmem) >= 1024:
+            if measured_shmem > reported_shmem and is_within_hw_max:
+                # Expected: GPU supports opt-in extended shared memory (sm_70+)
+                self.reasoning.log_step(
+                    'cross_verify',
+                    f'Shared memory: measured {measured_shmem} B exceeds default '
+                    f'{reported_shmem} B but is within hardware opt-in max '
+                    f'{hw_max} B — normal extended shared memory support, no anomaly',
+                )
+            elif measured_shmem < reported_shmem * 0.99:
+                # Measured is LESS than expected — potential hardware restriction
                 self.reasoning.log_anomaly(
                     'SHMEM_LIMIT_MISMATCH',
                     f'Measured max shared memory per block ({measured_shmem} bytes) '
-                    f'differs from API-reported ({reported_shmem} bytes). '
-                    f'The probe successfully enabled opt-in extended shared memory '
-                    f'via cudaFuncSetAttribute, or the API is reporting a '
-                    f'virtualised/restricted value.',
+                    f'is BELOW the API-reported default ({reported_shmem} bytes). '
+                    f'The hardware may be restricting shared memory access.',
                     expected=reported_shmem,
+                    measured=measured_shmem,
+                )
+            elif not is_within_hw_max:
+                # Measured exceeds even the hardware opt-in ceiling — unusual
+                self.reasoning.log_anomaly(
+                    'SHMEM_LIMIT_MISMATCH',
+                    f'Measured max shared memory per block ({measured_shmem} bytes) '
+                    f'exceeds the hardware opt-in ceiling ({hw_max} bytes). '
+                    f'This may indicate a spoofed or misconfigured device property.',
+                    expected=hw_max,
                     measured=measured_shmem,
                 )
 

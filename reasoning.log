@@ -1,44 +1,44 @@
 {
-  "timestamp": "2026-04-10T09:38:09.384900",
+  "timestamp": "2026-04-17T21:01:17.301099",
   "summary": {
-    "total_steps": 62,
-    "anomalies_detected": 2,
+    "total_steps": 51,
+    "anomalies_detected": 0,
     "cross_verifications": [
       {
         "metric": "clock_frequency",
         "method_a": {
           "name": "micro-benchmark (clock64/events)",
-          "value": 1979.39
+          "value": 2669.08
         },
         "method_b": {
-          "name": "cudaGetDeviceProperties",
-          "value": 1695.0
+          "name": "clocks.max.sm (nvidia-smi)",
+          "value": 3105.0
         },
         "agreement": false,
-        "deviation_pct": 14.367557681912107
+        "deviation_pct": 16.33221934149595
       },
       {
         "metric": "clock_frequency",
         "method_a": {
           "name": "micro-benchmark",
-          "value": 1979.39
+          "value": 2669.08
         },
         "method_b": {
           "name": "nvidia-smi current clock",
-          "value": 210.0
+          "value": 2670.0
         },
-        "agreement": false,
-        "deviation_pct": 89.39067086324575
+        "agreement": true,
+        "deviation_pct": 0.03446880573081634
       },
       {
         "metric": "sm_count",
         "method_a": {
           "name": "PTX smid probe (clock)",
-          "value": 82
+          "value": 24
         },
         "method_b": {
           "name": "cudaGetDeviceProperties",
-          "value": 82
+          "value": 24
         },
         "agreement": true,
         "deviation_pct": 0.0
@@ -47,11 +47,11 @@
         "metric": "sm_count",
         "method_a": {
           "name": "PTX smid probe (clock)",
-          "value": 82
+          "value": 24
         },
         "method_b": {
           "name": "PTX smid probe (bandwidth)",
-          "value": 82
+          "value": 24
         },
         "agreement": true,
         "deviation_pct": 0.0
@@ -59,41 +59,15 @@
       {
         "metric": "shmem_per_block",
         "method_a": {
-          "name": "binary search probe",
+          "name": "binary search probe (extended)",
           "value": 101376
         },
         "method_b": {
-          "name": "cudaGetDeviceProperties",
-          "value": 49152
-        },
-        "agreement": false,
-        "deviation_pct": 51.515151515151516
-      },
-      {
-        "metric": "global_bandwidth",
-        "method_a": {
-          "name": "micro-benchmark",
-          "value": 910.22
-        },
-        "method_b": {
-          "name": "ncu-implied peak (at 93.0% utilisation)",
-          "value": 978.6259541984733
+          "name": "cudaGetDeviceProperties sharedMemPerBlockOptin",
+          "value": 101376
         },
         "agreement": true,
-        "deviation_pct": 7.515320933232987
-      },
-      {
-        "metric": "clock_frequency",
-        "method_a": {
-          "name": "micro-benchmark (boost clock)",
-          "value": 1979.39
-        },
-        "method_b": {
-          "name": "ncu profiling (base clock, ncu --clock-control)",
-          "value": 1394.9990170958367
-        },
-        "agreement": true,
-        "deviation_pct": 29.523791819912365
+        "deviation_pct": 0.0
       }
     ],
     "steps": [
@@ -103,26 +77,46 @@
         "description": "Agent starting - detecting environment"
       },
       {
-        "timestamp": 0.4236330986022949,
+        "timestamp": 0.9547159671783447,
         "phase": "startup",
         "description": "GPU environment detected",
         "data": {
-          "gpu_name": "NVIDIA GeForce RTX 3090",
-          "compute_capability": 8.6,
-          "total_memory_mib": 24576.0,
-          "free_memory_mib": 24121.0,
-          "current_sm_clock_mhz": 210.0,
-          "current_mem_clock_mhz": 405.0,
-          "max_sm_clock_mhz": 2100.0,
-          "max_mem_clock_mhz": 9751.0,
-          "temperature_c": 31.0,
-          "power_draw_w": 32.79,
-          "power_limit_w": 350.0,
-          "persistence_mode": "Disabled"
+          "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+          "compute_capability": 8.9,
+          "total_memory_mib": 8188.0,
+          "free_memory_mib": 7957.0,
+          "current_sm_clock_mhz": 251.0,
+          "current_mem_clock_mhz": 8200.0,
+          "max_sm_clock_mhz": 3105.0,
+          "max_mem_clock_mhz": 8001.0,
+          "temperature_c": 42.0,
+          "power_draw_w": 14.01,
+          "power_limit_w": "[N/A]",
+          "persistence_mode": "[N/A]"
         }
       },
       {
-        "timestamp": 0.42420339584350586,
+        "timestamp": 0.9553661346435547,
+        "phase": "initialization",
+        "description": "Loaded target_spec.json: keys=['targets', 'run']",
+        "data": {
+          "targets": [
+            "l1_latency_cycles",
+            "l2_latency_cycles",
+            "dram_latency_cycles",
+            "l2_cache_size_kb",
+            "max_global_bandwidth_gbps",
+            "max_shmem_bandwidth_gbps",
+            "actual_boost_clock_mhz",
+            "max_shmem_per_block_kb",
+            "bank_conflict_penalty_cycles",
+            "num_active_sms"
+          ],
+          "run": "build/kernels/matmul_naive"
+        }
+      },
+      {
+        "timestamp": 0.9561879634857178,
         "phase": "initialization",
         "description": "Loaded target_spec.json with 10 metrics",
         "data": {
@@ -141,477 +135,405 @@
         }
       },
       {
-        "timestamp": 0.42449522018432617,
+        "timestamp": 1.041234016418457,
         "phase": "planning",
         "description": "Planning probes for 10 target metrics: ['l1_latency_cycles', 'l2_latency_cycles', 'dram_latency_cycles', 'l2_cache_size_kb', 'max_global_bandwidth_gbps', 'max_shmem_bandwidth_gbps', 'actual_boost_clock_mhz', 'max_shmem_per_block_kb', 'bank_conflict_penalty_cycles', 'num_active_sms']"
       },
       {
-        "timestamp": 0.42455482482910156,
+        "timestamp": 1.0415003299713135,
         "phase": "environment",
         "description": "Detecting GPU environment"
       },
       {
-        "timestamp": 0.7815196514129639,
+        "timestamp": 1.5155525207519531,
         "phase": "environment",
         "description": "GPU info from nvidia-smi",
         "data": {
-          "gpu_name": "NVIDIA GeForce RTX 3090",
-          "compute_capability": 8.6,
-          "total_memory_mib": 24576.0,
-          "free_memory_mib": 24121.0,
-          "current_sm_clock_mhz": 210.0,
-          "current_mem_clock_mhz": 405.0,
-          "max_sm_clock_mhz": 2100.0,
-          "max_mem_clock_mhz": 9751.0,
-          "temperature_c": 30.0,
-          "power_draw_w": 32.01,
-          "power_limit_w": 350.0,
-          "persistence_mode": "Disabled"
+          "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+          "compute_capability": 8.9,
+          "total_memory_mib": 8188.0,
+          "free_memory_mib": 7957.0,
+          "current_sm_clock_mhz": 2010.0,
+          "current_mem_clock_mhz": 8200.0,
+          "max_sm_clock_mhz": 3105.0,
+          "max_mem_clock_mhz": 8001.0,
+          "temperature_c": 42.0,
+          "power_draw_w": 14.07,
+          "power_limit_w": "[N/A]",
+          "persistence_mode": "[N/A]"
         }
       },
       {
-        "timestamp": 0.7818219661712646,
+        "timestamp": 1.5160472393035889,
         "phase": "planning",
         "description": "Will run 5 probes: ['bandwidth_probe', 'bank_conflict_probe', 'clock_probe', 'latency_probe', 'shmem_limit_probe']"
       },
       {
-        "timestamp": 0.7818801403045654,
+        "timestamp": 1.5162384510040283,
         "phase": "compilation",
         "description": "Compiling CUDA micro-benchmarks"
       },
       {
-        "timestamp": 2.316021203994751,
+        "timestamp": 4.631222724914551,
         "phase": "compilation",
         "description": "Compiled bandwidth_probe successfully"
       },
       {
-        "timestamp": 3.7071831226348877,
+        "timestamp": 28.508121252059937,
         "phase": "compilation",
         "description": "Compiled bank_conflict_probe successfully"
       },
       {
-        "timestamp": 5.140845775604248,
+        "timestamp": 31.91691017150879,
         "phase": "compilation",
         "description": "Compiled clock_probe successfully"
       },
       {
-        "timestamp": 6.508413314819336,
+        "timestamp": 64.00676846504211,
         "phase": "compilation",
         "description": "Compiled latency_probe successfully"
       },
       {
-        "timestamp": 7.8172056674957275,
+        "timestamp": 67.27424931526184,
         "phase": "compilation",
         "description": "Compiled shmem_limit_probe successfully"
       },
       {
-        "timestamp": 7.817274570465088,
+        "timestamp": 67.27452993392944,
         "phase": "execution",
         "description": "Running clock_probe..."
       },
       {
-        "timestamp": 12.277263879776001,
+        "timestamp": 70.06079602241516,
         "phase": "execution",
-        "description": "clock_probe completed (643 bytes output)"
+        "description": "clock_probe completed (615 bytes output)"
       },
       {
-        "timestamp": 12.278702735900879,
+        "timestamp": 70.06188178062439,
         "phase": "parsing",
-        "description": "Parsed clock_probe: 8 data points",
+        "description": "Parsed clock_probe: 7 data points",
         "data": {
           "trials": [
             {
-              "cycles": 1350000352,
-              "elapsed_ms": 680.2278,
-              "clock_mhz": 1984.63
+              "cycles": 1350000283,
+              "elapsed_ms": 572.437622,
+              "clock_mhz": 2358.34
             },
             {
-              "cycles": 1350000365,
-              "elapsed_ms": 682.0446,
-              "clock_mhz": 1979.34
+              "cycles": 1350000295,
+              "elapsed_ms": 505.787292,
+              "clock_mhz": 2669.11
             },
             {
-              "cycles": 1350000352,
-              "elapsed_ms": 682.0341,
-              "clock_mhz": 1979.37
+              "cycles": 1350000296,
+              "elapsed_ms": 505.791718,
+              "clock_mhz": 2669.08
             },
             {
-              "cycles": 1350000365,
-              "elapsed_ms": 682.0295,
-              "clock_mhz": 1979.39
+              "cycles": 1350000297,
+              "elapsed_ms": 505.796631,
+              "clock_mhz": 2669.06
             },
             {
-              "cycles": 1350333694,
-              "elapsed_ms": 682.1981,
-              "clock_mhz": 1979.39
+              "cycles": 1350000295,
+              "elapsed_ms": 505.792572,
+              "clock_mhz": 2669.08
             }
           ],
-          "num_active_sms": 82,
-          "measured_clock_mhz": 1979.39,
-          "reported_clock_mhz": 1695.0,
-          "reported_sm_count": 82,
-          "reported_device_name": "NVIDIA GeForce RTX 3090",
-          "reported_compute_cap": "8.6",
-          "anomalies": [
-            {
-              "type": "FREQ_LOCKING",
-              "measured": 1979.0,
-              "reported": 1695.0
-            }
-          ]
+          "num_active_sms": 24,
+          "measured_clock_mhz": 2669.08,
+          "reported_clock_mhz": 2010.0,
+          "reported_sm_count": 24,
+          "reported_device_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+          "reported_compute_cap": "8.9"
         }
       },
       {
-        "timestamp": 12.278961896896362,
-        "phase": "execution",
-        "description": "Running bandwidth_probe..."
-      },
-      {
-        "timestamp": 12.623203754425049,
-        "phase": "execution",
-        "description": "bandwidth_probe completed (740 bytes output)"
-      },
-      {
-        "timestamp": 12.624733924865723,
-        "phase": "parsing",
-        "description": "Parsed bandwidth_probe: 9 data points",
-        "data": {
-          "active_sm_count": 82,
-          "global_read_bw": [
-            883.23,
-            901.46,
-            910.22,
-            892.41
-          ],
-          "global_write_bw": [
-            877.32,
-            904.57,
-            910.22,
-            912.92
-          ],
-          "global_copy_bw": [
-            844.54,
-            856.4,
-            864.88,
-            867.24
-          ],
-          "best_read_bw_gbps": 910.22,
-          "best_write_bw_gbps": 912.92,
-          "best_copy_bw_gbps": 867.24,
-          "shmem_bw_gbps_per_sm": 842.55,
-          "shmem_bw_gbps_aggregate": 69088.99
-        }
-      },
-      {
-        "timestamp": 12.62494969367981,
-        "phase": "execution",
-        "description": "Running latency_probe..."
-      },
-      {
-        "timestamp": 16.91990566253662,
-        "phase": "execution",
-        "description": "latency_probe completed (1899 bytes output)"
-      },
-      {
-        "timestamp": 16.920557260513306,
-        "phase": "parsing",
-        "description": "Parsed latency_probe: 9 data points",
-        "data": {
-          "data_points": [
-            {
-              "size_bytes": 1024,
-              "avg_cycles": 38.07,
-              "median_cycles": 38.07,
-              "trimmed_mean": 38.07
-            },
-            {
-              "size_bytes": 2048,
-              "avg_cycles": 38.13,
-              "median_cycles": 38.14,
-              "trimmed_mean": 38.14
-            },
-            {
-              "size_bytes": 4096,
-              "avg_cycles": 38.27,
-              "median_cycles": 38.27,
-              "trimmed_mean": 38.27
-            },
-            {
-              "size_bytes": 8192,
-              "avg_cycles": 38.55,
-              "median_cycles": 38.55,
-              "trimmed_mean": 38.55
-            },
-            {
-              "size_bytes": 16384,
-              "avg_cycles": 39.1,
-              "median_cycles": 39.1,
-              "trimmed_mean": 39.1
-            },
-            {
-              "size_bytes": 32768,
-              "avg_cycles": 40.21,
-              "median_cycles": 40.21,
-              "trimmed_mean": 40.21
-            },
-            {
-              "size_bytes": 65536,
-              "avg_cycles": 42.41,
-              "median_cycles": 42.42,
-              "trimmed_mean": 42.42
-            },
-            {
-              "size_bytes": 131072,
-              "avg_cycles": 143.19,
-              "median_cycles": 143.21,
-              "trimmed_mean": 143.21
-            },
-            {
-              "size_bytes": 196608,
-              "avg_cycles": 199.92,
-              "median_cycles": 199.97,
-              "trimmed_mean": 199.97
-            },
-            {
-              "size_bytes": 262144,
-              "avg_cycles": 216.69,
-              "median_cycles": 216.75,
-              "trimmed_mean": 216.74
-            },
-            {
-              "size_bytes": 393216,
-              "avg_cycles": 230.74,
-              "median_cycles": 230.83,
-              "trimmed_mean": 230.8
-            },
-            {
-              "size_bytes": 524288,
-              "avg_cycles": 237.04,
-              "median_cycles": 237.08,
-              "trimmed_mean": 237.08
-            },
-            {
-              "size_bytes": 786432,
-              "avg_cycles": 243.26,
-              "median_cycles": 243.34,
-              "trimmed_mean": 243.33
-            },
-            {
-              "size_bytes": 1048576,
-              "avg_cycles": 245.68,
-              "median_cycles": 245.75,
-              "trimmed_mean": 245.75
-            },
-            {
-              "size_bytes": 1572864,
-              "avg_cycles": 248.49,
-              "median_cycles": 248.49,
-              "trimmed_mean": 248.49
-            },
-            {
-              "size_bytes": 2097152,
-              "avg_cycles": 249.74,
-              "median_cycles": 249.74,
-              "trimmed_mean": 249.74
-            },
-            {
-              "size_bytes": 3145728,
-              "avg_cycles": 251.04,
-              "median_cycles": 251.11,
-              "trimmed_mean": 251.11
-            },
-            {
-              "size_bytes": 4194304,
-              "avg_cycles": 251.64,
-              "median_cycles": 251.64,
-              "trimmed_mean": 251.64
-            },
-            {
-              "size_bytes": 6291456,
-              "avg_cycles": 255.55,
-              "median_cycles": 255.78,
-              "trimmed_mean": 255.92
-            },
-            {
-              "size_bytes": 8388608,
-              "avg_cycles": 323.96,
-              "median_cycles": 325.82,
-              "trimmed_mean": 325.48
-            },
-            {
-              "size_bytes": 12582912,
-              "avg_cycles": 421.39,
-              "median_cycles": 422.59,
-              "trimmed_mean": 422.48
-            },
-            {
-              "size_bytes": 16777216,
-              "avg_cycles": 458.51,
-              "median_cycles": 459.3,
-              "trimmed_mean": 459.29
-            },
-            {
-              "size_bytes": 33554432,
-              "avg_cycles": 497.7,
-              "median_cycles": 497.96,
-              "trimmed_mean": 497.99
-            },
-            {
-              "size_bytes": 67108864,
-              "avg_cycles": 515.24,
-              "median_cycles": 515.41,
-              "trimmed_mean": 515.36
-            }
-          ],
-          "l1_latency_cycles": 38.07,
-          "l1_l2_boundary_bytes": 65536,
-          "l2_latency_cycles": 250.425,
-          "l2_dram_boundary_bytes": 6291456,
-          "l2_cache_size_kb": 6144.0,
-          "l2_cache_size_mb": 6.0,
-          "dram_latency_cycles": 515.41,
-          "_analysis": {
-            "l1_l2_transition_idx": 7,
-            "stable_l2_start_idx": 13,
-            "l2_boundary_idx": 18,
-            "num_stable_l2_points": 6
-          }
-        }
-      },
-      {
-        "timestamp": 16.92099905014038,
+        "timestamp": 70.062748670578,
         "phase": "execution",
         "description": "Running bank_conflict_probe..."
       },
       {
-        "timestamp": 17.444065809249878,
+        "timestamp": 71.29491448402405,
         "phase": "execution",
-        "description": "bank_conflict_probe completed (663 bytes output)"
+        "description": "bank_conflict_probe completed (277 bytes output)"
       },
       {
-        "timestamp": 17.444870710372925,
+        "timestamp": 71.29568696022034,
         "phase": "parsing",
         "description": "Parsed bank_conflict_probe: 4 data points",
         "data": {
           "stride_results": [
             {
               "stride": 1,
-              "cycles_per_access": 45.0
+              "cycles_per_access": 0.18
             },
             {
               "stride": 2,
-              "cycles_per_access": 47.0
+              "cycles_per_access": 0.18
             },
             {
               "stride": 4,
-              "cycles_per_access": 51.0
+              "cycles_per_access": 0.2
             },
             {
               "stride": 8,
-              "cycles_per_access": 59.0
+              "cycles_per_access": 0.25
             },
             {
               "stride": 16,
-              "cycles_per_access": 75.0
+              "cycles_per_access": 0.5
             },
             {
               "stride": 32,
-              "cycles_per_access": 107.0
+              "cycles_per_access": 1.0
             }
           ],
-          "penalty_cycles": 62.0,
-          "no_conflict_cycles": 45.0,
-          "max_conflict_cycles": 107.0
+          "no_conflict_cycles": 0.18,
+          "max_conflict_cycles": 1.0,
+          "penalty_cycles": 0.82
         }
       },
       {
-        "timestamp": 17.44507908821106,
+        "timestamp": 71.29636526107788,
+        "phase": "execution",
+        "description": "Running bandwidth_probe..."
+      },
+      {
+        "timestamp": 71.45234847068787,
+        "phase": "execution",
+        "description": "bandwidth_probe completed (598 bytes output)"
+      },
+      {
+        "timestamp": 71.45300221443176,
+        "phase": "parsing",
+        "description": "Parsed bandwidth_probe: 9 data points",
+        "data": {
+          "active_sm_count": 24,
+          "global_read_bw": [
+            184.09,
+            250.14,
+            254.51,
+            255.29
+          ],
+          "best_read_bw_gbps": 255.29,
+          "global_write_bw": [
+            313.57,
+            257.0,
+            254.51,
+            253.89
+          ],
+          "best_write_bw_gbps": 313.57,
+          "global_copy_bw": [
+            214.17,
+            229.75,
+            229.58,
+            231.99
+          ],
+          "best_copy_bw_gbps": 231.99,
+          "shmem_bw_gbps_per_sm": 215.05,
+          "shmem_bw_gbps_aggregate": 5161.29
+        }
+      },
+      {
+        "timestamp": 71.45323824882507,
+        "phase": "execution",
+        "description": "Running latency_probe..."
+      },
+      {
+        "timestamp": 91.30558323860168,
+        "phase": "execution",
+        "description": "latency_probe completed (984 bytes output)"
+      },
+      {
+        "timestamp": 91.30588030815125,
+        "phase": "parsing",
+        "description": "Parsed latency_probe: 9 data points",
+        "data": {
+          "data_points": [
+            {
+              "size_bytes": 1024,
+              "avg_cycles": 43.16,
+              "median_cycles": 43.16,
+              "trimmed_mean": 43.16
+            },
+            {
+              "size_bytes": 2048,
+              "avg_cycles": 43.3,
+              "median_cycles": 43.3,
+              "trimmed_mean": 43.3
+            },
+            {
+              "size_bytes": 4096,
+              "avg_cycles": 43.61,
+              "median_cycles": 43.6,
+              "trimmed_mean": 43.6
+            },
+            {
+              "size_bytes": 8192,
+              "avg_cycles": 44.2,
+              "median_cycles": 44.2,
+              "trimmed_mean": 44.2
+            },
+            {
+              "size_bytes": 16384,
+              "avg_cycles": 45.4,
+              "median_cycles": 45.4,
+              "trimmed_mean": 45.4
+            },
+            {
+              "size_bytes": 32768,
+              "avg_cycles": 47.8,
+              "median_cycles": 47.8,
+              "trimmed_mean": 47.8
+            },
+            {
+              "size_bytes": 131072,
+              "avg_cycles": 200.93,
+              "median_cycles": 200.91,
+              "trimmed_mean": 200.95
+            },
+            {
+              "size_bytes": 1048576,
+              "avg_cycles": 271.9,
+              "median_cycles": 271.77,
+              "trimmed_mean": 271.77
+            },
+            {
+              "size_bytes": 8388608,
+              "avg_cycles": 282.23,
+              "median_cycles": 276.65,
+              "trimmed_mean": 276.65
+            },
+            {
+              "size_bytes": 16777216,
+              "avg_cycles": 283.11,
+              "median_cycles": 276.94,
+              "trimmed_mean": 276.94
+            },
+            {
+              "size_bytes": 33554432,
+              "avg_cycles": 310.45,
+              "median_cycles": 298.71,
+              "trimmed_mean": 298.69
+            },
+            {
+              "size_bytes": 67108864,
+              "avg_cycles": 599.96,
+              "median_cycles": 601.32,
+              "trimmed_mean": 601.32
+            },
+            {
+              "size_bytes": 268435456,
+              "avg_cycles": 647.4,
+              "median_cycles": 647.63,
+              "trimmed_mean": 647.63
+            }
+          ],
+          "l1_latency_cycles": 43.16,
+          "l1_l2_boundary_bytes": 32768,
+          "l2_latency_cycles": 276.79499999999996,
+          "l2_dram_boundary_bytes": 33554432,
+          "l2_cache_size_kb": 32768.0,
+          "l2_cache_size_mb": 32.0,
+          "dram_latency_cycles": 647.63,
+          "_analysis": {
+            "l1_l2_transition_idx": 6,
+            "stable_l2_start_idx": 8,
+            "l2_boundary_idx": 10,
+            "num_stable_l2_points": 2
+          }
+        }
+      },
+      {
+        "timestamp": 91.30612111091614,
         "phase": "execution",
         "description": "Running shmem_limit_probe..."
       },
       {
-        "timestamp": 17.688573837280273,
+        "timestamp": 91.43185758590698,
         "phase": "execution",
-        "description": "shmem_limit_probe completed (284 bytes output)"
+        "description": "shmem_limit_probe completed (322 bytes output)"
       },
       {
-        "timestamp": 17.689526796340942,
+        "timestamp": 91.43270683288574,
         "phase": "parsing",
-        "description": "Parsed shmem_limit_probe: 6 data points",
+        "description": "Parsed shmem_limit_probe: 7 data points",
         "data": {
           "default_shmem_bytes": 49152,
           "extended_shmem_bytes": 101376,
           "max_shmem_bytes": 101376,
           "max_shmem_kb": 99,
           "reported_shmem_per_block": 49152,
-          "reported_shmem_per_sm": 102400
+          "reported_shmem_per_sm": 102400,
+          "reported_shmem_per_block_optin": 101376
         }
       },
       {
-        "timestamp": 17.68971562385559,
+        "timestamp": 91.4332823753357,
         "phase": "result",
-        "description": "Metric l1_latency_cycles = 38.07",
+        "description": "Metric l1_latency_cycles = 43.16",
         "data": {
           "metric": "l1_latency_cycles",
-          "value": 38.07
+          "value": 43.16
         }
       },
       {
-        "timestamp": 17.689833879470825,
+        "timestamp": 91.43376016616821,
         "phase": "result",
-        "description": "Metric l2_latency_cycles = 250.425",
+        "description": "Metric l2_latency_cycles = 276.79499999999996",
         "data": {
           "metric": "l2_latency_cycles",
-          "value": 250.425
+          "value": 276.79499999999996
         }
       },
       {
-        "timestamp": 17.6899471282959,
+        "timestamp": 91.43882584571838,
         "phase": "result",
-        "description": "Metric dram_latency_cycles = 515.41",
+        "description": "Metric dram_latency_cycles = 647.63",
         "data": {
           "metric": "dram_latency_cycles",
-          "value": 515.41
+          "value": 647.63
         }
       },
       {
-        "timestamp": 17.69006109237671,
+        "timestamp": 91.44141411781311,
         "phase": "result",
-        "description": "Metric l2_cache_size_kb = 6144.0",
+        "description": "Metric l2_cache_size_kb = 32768.0",
         "data": {
           "metric": "l2_cache_size_kb",
-          "value": 6144.0
+          "value": 32768.0
         }
       },
       {
-        "timestamp": 17.69016933441162,
+        "timestamp": 91.44197249412537,
         "phase": "result",
-        "description": "Metric max_global_bandwidth_gbps = 910.22",
+        "description": "Metric max_global_bandwidth_gbps = 255.29",
         "data": {
           "metric": "max_global_bandwidth_gbps",
-          "value": 910.22
+          "value": 255.29
         }
       },
       {
-        "timestamp": 17.690277576446533,
+        "timestamp": 91.44255781173706,
         "phase": "result",
-        "description": "Metric max_shmem_bandwidth_gbps = 69088.99",
+        "description": "Metric max_shmem_bandwidth_gbps = 5161.29",
         "data": {
           "metric": "max_shmem_bandwidth_gbps",
-          "value": 69088.99
+          "value": 5161.29
         }
       },
       {
-        "timestamp": 17.690382719039917,
+        "timestamp": 91.44307327270508,
         "phase": "result",
-        "description": "Metric actual_boost_clock_mhz = 1979.39",
+        "description": "Metric actual_boost_clock_mhz = 2669.08",
         "data": {
           "metric": "actual_boost_clock_mhz",
-          "value": 1979.39
+          "value": 2669.08
         }
       },
       {
-        "timestamp": 17.69048833847046,
+        "timestamp": 91.44364714622498,
         "phase": "result",
         "description": "Metric max_shmem_per_block_kb = 99",
         "data": {
@@ -620,245 +542,90 @@
         }
       },
       {
-        "timestamp": 17.69060492515564,
+        "timestamp": 91.44414234161377,
         "phase": "result",
-        "description": "Metric bank_conflict_penalty_cycles = 62.0",
+        "description": "Metric bank_conflict_penalty_cycles = 0.82",
         "data": {
           "metric": "bank_conflict_penalty_cycles",
-          "value": 62.0
+          "value": 0.82
         }
       },
       {
-        "timestamp": 17.690797090530396,
+        "timestamp": 91.44494485855103,
         "phase": "result",
-        "description": "Metric num_active_sms = 82",
+        "description": "Metric num_active_sms = 24",
         "data": {
           "metric": "num_active_sms",
-          "value": 82
+          "value": 24
         }
       },
       {
-        "timestamp": 17.69089961051941,
+        "timestamp": 91.44549822807312,
         "phase": "cross_verify",
         "description": "Phase 4: Cross-verifying measurements"
       },
       {
-        "timestamp": 369.87233328819275,
+        "timestamp": 91.62197732925415,
+        "phase": "cross_verify",
+        "description": "Clock 2669 MHz is within normal GPU Boost range of base 2010 MHz / max 3105 MHz \u2014 no anomaly"
+      },
+      {
+        "timestamp": 91.62238836288452,
+        "phase": "cross_verify",
+        "description": "Shared memory: measured 101376 B exceeds default 49152 B but is within hardware opt-in max 101376 B \u2014 normal extended shared memory support, no anomaly"
+      },
+      {
+        "timestamp": 91.6224946975708,
         "phase": "ncu_cross_verify",
         "description": "Phase 4b: Running ncu cross-verification on lightweight probe"
       },
       {
-        "timestamp": 372.52067399024963,
+        "timestamp": 94.56079149246216,
         "phase": "ncu_cross_verify",
-        "description": "ncu reports DRAM throughput utilisation: 93.0%",
-        "data": {
-          "ncu_dram_throughput_pct": 93.01,
-          "ncu_dram_bytes": 69122432.0,
-          "ncu_gpu_time_ns": 79520.0
-        }
+        "description": "ncu bandwidth check failed: "
       },
       {
-        "timestamp": 373.71021723747253,
+        "timestamp": 94.61552572250366,
         "phase": "ncu_cross_verify",
-        "description": "ncu-estimated GPU clock: 1395.0 MHz (under ncu clock-control = base clock)",
-        "data": {
-          "ncu_clock_mhz": 1395.0,
-          "ncu_sm_cycles_elapsed": 97503333.54,
-          "ncu_gpu_time_ns": 69894912.0
-        }
+        "description": "ncu clock check failed: "
       },
       {
-        "timestamp": 373.7105646133423,
-        "phase": "ncu_cross_verify",
-        "description": "Micro-benchmark boost clock (1979 MHz) > ncu base-clock (1395 MHz) \u2192 consistent with GPU boost behaviour under sustained workload"
-      },
-      {
-        "timestamp": 373.71062421798706,
+        "timestamp": 94.61577534675598,
         "phase": "summary",
-        "description": "ANOMALY SUMMARY: Detected 2 anomalies",
-        "data": {
-          "anomalies": [
-            "FREQ_LOCKING",
-            "SHMEM_LIMIT_MISMATCH"
-          ]
-        }
+        "description": "No anomalies detected - environment appears standard"
       },
       {
-        "timestamp": 373.71073818206787,
-        "phase": "summary",
-        "description": "  - FREQ_LOCKING: Measured GPU clock (1979 MHz) differs significantly from reported (1695 MHz). The GPU may be frequency-locked at a non-standard rate."
-      },
-      {
-        "timestamp": 373.71078300476074,
-        "phase": "summary",
-        "description": "  - SHMEM_LIMIT_MISMATCH: Measured max shared memory per block (101376 bytes) differs from API-reported (49152 bytes). The probe successfully enabled opt-in extended shared memory via cudaFuncSetAttribute, or the API is reporting a virtualised/restricted value."
-      },
-      {
-        "timestamp": 373.7108266353607,
+        "timestamp": 94.6159930229187,
         "phase": "llm_synthesis",
         "description": "Generating LLM final analysis..."
       },
       {
-        "timestamp": 533.5824990272522,
+        "timestamp": 173.1577503681183,
         "phase": "llm_synthesis",
         "description": "LLM-authored _reasoning and _methodology generated",
         "data": {
-          "reasoning_length": 2580,
-          "methodology_length": 1726
+          "reasoning_length": 237,
+          "methodology_length": 1810
         }
       },
       {
-        "timestamp": 533.583432674408,
+        "timestamp": 173.16071009635925,
         "phase": "kernel_analysis",
-        "description": "Starting kernel bottleneck analysis for build/kernels/matmul_naive"
+        "description": "Starting kernel bottleneck analysis for D:\\Projects\\2026SpringCourse\\MachineLearningSystem\\Project1-V2\\gpu-hardware-profiling-agent\\build/kernels/matmul_naive.exe"
       },
       {
-        "timestamp": 533.5835061073303,
+        "timestamp": 173.16091108322144,
         "phase": "roofline",
         "description": "Step 1: Collecting all analysis metrics via ncu (skip warmup launch)"
       },
       {
-        "timestamp": 535.0733213424683,
+        "timestamp": 174.35748267173767,
         "phase": "roofline",
-        "description": "Kernel \"matmul_naive_kernel(const float *, const float *, float *, int)\" classified as BALANCED",
-        "data": {
-          "compute_utilization_pct": 98.1,
-          "memory_utilization_pct": 98.1,
-          "block_size": "(16, 16, 1)",
-          "grid_size": "(64, 64, 1)"
-        }
-      },
-      {
-        "timestamp": 535.073539018631,
-        "phase": "characterise",
-        "description": "Step 2: Memory-bound path \u2013 analysing DRAM, L2, L1 hierarchy",
-        "data": {
-          "l1_global_load_sectors": 134217529.0,
-          "l2_throughput_pct": 0.0,
-          "dram_throughput_pct": 1.22,
-          "bank_conflicts": 32669114.0
-        }
-      },
-      {
-        "timestamp": 535.0736730098724,
-        "phase": "characterise",
-        "description": "Step 2: Compute-bound path \u2013 analysing Tensor / FMA units",
-        "data": {
-          "tensor_core_utilization_pct": 0.0,
-          "fma_utilization_pct": 19.26,
-          "fp32_instructions": 1073741824.0
-        }
-      },
-      {
-        "timestamp": 535.0738024711609,
-        "phase": "characterise",
-        "description": "Tensor Cores idle (0.0%) while FMA active (19.3%). For matmul-like kernels, enabling WMMA/MMA would dramatically improve throughput."
-      },
-      {
-        "timestamp": 535.0738472938538,
-        "phase": "anomaly_scan",
-        "description": "Step 3: Scanning for occupancy, bank-conflict, and divergence anomalies"
-      },
-      {
-        "timestamp": 535.073903799057,
-        "phase": "bottleneck",
-        "description": "Detected: COMPUTE_BOUND (severity=high, metric=sm__throughput.avg.pct_of_peak_sustained_elapsed, value=98.1)",
-        "data": {
-          "type": "COMPUTE_BOUND",
-          "severity": "high",
-          "metric": "sm__throughput.avg.pct_of_peak_sustained_elapsed",
-          "value": 98.1,
-          "recommendation": "Consider algorithmic improvements, precision reduction (FP16/BF16), or Tensor Core utilisation via WMMA/MMA."
-        }
-      },
-      {
-        "timestamp": 535.074018239975,
-        "phase": "bottleneck",
-        "description": "Detected: TENSOR_CORES_UNUSED (severity=medium, metric=sm__pipe_tensor_op_hmma_cycles_active, value=0.0)",
-        "data": {
-          "type": "TENSOR_CORES_UNUSED",
-          "severity": "medium",
-          "metric": "sm__pipe_tensor_op_hmma_cycles_active",
-          "value": 0.0,
-          "recommendation": "Tensor Cores are idle while FMA units are active. For matrix operations, use WMMA/MMA intrinsics or cuBLAS with FP16 inputs aligned to 16/32 boundaries."
-        }
-      },
-      {
-        "timestamp": 535.0741279125214,
-        "phase": "bottleneck",
-        "description": "Detected: BANK_CONFLICT (severity=high, metric=l1tex__data_bank_conflicts_pipe_lsu.sum, value=32669114.0)",
-        "data": {
-          "type": "BANK_CONFLICT",
-          "severity": "high",
-          "metric": "l1tex__data_bank_conflicts_pipe_lsu.sum",
-          "value": 32669114.0,
-          "recommendation": "Shared Memory bank conflicts detected. Adjust indexing with padding (e.g. TILE[N][N+1]) or restructure access so that threads in a warp access distinct banks."
-        }
-      },
-      {
-        "timestamp": 535.074244260788,
-        "phase": "bottleneck",
-        "description": "Detected: EXCESSIVE_GLOBAL_LOADS (severity=medium, metric=l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum, value=134217529.0)",
-        "data": {
-          "type": "EXCESSIVE_GLOBAL_LOADS",
-          "severity": "medium",
-          "metric": "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum",
-          "value": 134217529.0,
-          "recommendation": "Excessive L1 global load sectors (134217529). Check memory access patterns: ensure coalesced access (adjacent threads access adjacent addresses) and consider data prefetching or shared memory caching."
-        }
-      },
-      {
-        "timestamp": 535.0743644237518,
-        "phase": "raw_metrics",
-        "description": "All 10 ncu metrics collected",
-        "data": {
-          "dram__throughput.avg.pct_of_peak_sustained_elapsed": 1.22,
-          "gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed": 98.1,
-          "l1tex__data_bank_conflicts_pipe_lsu.sum": 32669114.0,
-          "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum": 134217529.0,
-          "sm__maximum_warps_per_active_cycle_pct": 100.0,
-          "sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active": 19.26,
-          "sm__pipe_tensor_op_hmma_cycles_active.avg.pct_of_peak_sustained_active": 0.0,
-          "sm__sass_thread_inst_executed_op_fp32_pred_on.sum": 1073741824.0,
-          "sm__throughput.avg.pct_of_peak_sustained_elapsed": 98.1,
-          "sm__warps_active.avg.pct_of_peak_sustained_active": 95.16
-        }
-      },
-      {
-        "timestamp": 535.0744948387146,
-        "phase": "llm_synthesis",
-        "description": "Step 4: Generating LLM-authored bottleneck analysis"
-      },
-      {
-        "timestamp": 783.8692882061005,
-        "phase": "kernel_analysis",
-        "description": "Kernel analysis complete",
-        "data": {
-          "classification": "balanced",
-          "num_bottlenecks": 4,
-          "primary_bottleneck": "COMPUTE_BOUND"
-        }
+        "description": "ncu profiling failed: No metrics collected"
       }
     ],
-    "anomalies": [
-      {
-        "type": "FREQ_LOCKING",
-        "description": "Measured GPU clock (1979 MHz) differs significantly from reported (1695 MHz). The GPU may be frequency-locked at a non-standard rate.",
-        "expected": 1695.0,
-        "measured": 1979.39,
-        "llm_analysis": "**Root Cause Analysis**\n\n**Diagnosis:**  \nThe anomaly is caused by **GPU Boost behavior on an Unlocked Consumer-Grade GPU (likely NVIDIA GeForce RTX 3090)**. The GPU is not frequency-locked in the traditional sense; rather, the API is reporting the card's **Rated Boost Clock**, while the micro-benchmark is measuring the **Effective (Actual) Boost Clock**.\n\nThis indicates that the system administrator has not enforced a strict frequency lock (using `nvidia-smi -lgc`), allowing the GPU to operate in its default \"unlocked\" state where it exceeds the manufacturer's base specification based on thermal and power headroom.\n\n**Evidence:**\n1.  **Hardware Identification:** The API-reported value of **1695 MHz** matches the official *Rated Boost Clock* of the **NVIDIA GeForce RTX 3090**.\n2.  **Performance Discrepancy:** The measured value of **1979 MHz** is a typical real-world operating frequency for an RTX 3090 under load with adequate cooling (often achieving 1950\u20132050 MHz out of the box).\n3.  **API vs. Hardware Reality:** The CUDA API (`cudaGetDeviceProperties`) frequently returns the manufacturer's specified maximum boost clock (1695 MHz), not the actual current operating frequency. Conversely, the micro-benchmark measures the hardware's true execution throughput, revealing that the GPU is actively overclocking itself (GPU Boost 4.0) beyond the advertised specification.\n4.  **Exclusion of Virtualization/SM Masking:**\n    *   **Virtualization:** Usually results in *lower* measured performance due to overhead or vGPU profiling caps. It does not cause the measured frequency to exceed the reported maximum.\n    *   **SM Masking:** Reduces compute throughput (scaling linearly) but does not alter the reported clock frequency of the active SMs.\n\n**Conclusion:**\nThe system is running an **NVIDIA GeForce RTX 3090** with **default frequency governance**. The \"lock\" implied by the anomaly type is absent; the GPU is freely boosting ~16.7% above its rated specification.\n\n**Confidence Level:**  \n**95%** (The correlation between 1695 MHz and the RTX 3090 spec is exact).",
-        "timestamp": 191.19683814048767
-      },
-      {
-        "type": "SHMEM_LIMIT_MISMATCH",
-        "description": "Measured max shared memory per block (101376 bytes) differs from API-reported (49152 bytes). The probe successfully enabled opt-in extended shared memory via cudaFuncSetAttribute, or the API is reporting a virtualised/restricted value.",
-        "expected": 49152,
-        "measured": 101376,
-        "llm_analysis": "**Root Cause Analysis**\n\n**Diagnosis:** **Native Hardware Capability via Opt-In (SM 8.6 Architecture Detection)**\n\nThe reported anomaly is **not** a failure or a virtualization artifact, but rather a successful detection of the physical hardware's capabilities. The mismatch arises because the API value (`49152 bytes`) represents the **static default limit** guaranteed by the CUDA driver for backward compatibility, whereas the measured value (`101376 bytes`) represents the **dynamic opt-in limit** available on the underlying silicon.\n\nThe numeric evidence precisely identifies the GPU architecture as **NVIDIA Ampere (Compute Capability 8.6)**, commonly found in the **RTX 30-series (e.g., RTX 3090)** or the **NVIDIA A10 / A40** datacenter cards.\n\n---\n\n### Numeric Evidence & Reasoning\n\n**1. Decoding the Expected Value (49,152 bytes):**\n*   **Value:** 48 KB.\n*   **Significance:** This is the standard, hardcoded default shared memory limit per block defined by CUDA for architectures prior to Volta (and maintained as the default on later architectures for portability).\n*   **Source:** This value is returned by `cudaDeviceGetAttribute(cudaDevAttrMaxSharedMemoryPerBlock, ...)` without accounting for the opt-in capability. It is a \"safe\" legacy value.\n\n**2. Decoding the Measured Value (101,376 bytes):**\n*   **Value:** ~99 KB ($101376 / 1024 = 99 \\text{ KB}$).\n*   **Significance:** This specific size is the hallmark of **Compute Capability 8.6** (Ampere GA102/GA104).\n*   **Hardware Correlation:**\n    *   SM 8.6 GPUs possess **100 KB** of physical Shared Memory per Streaming Multiprocessor (SM).\n    *   CUDA reserves a small portion of this memory for driver/kernel overhead (approx. 1 KB).\n    *   The maximum allocatable block size is calculated as: $\\text{Total Shared Memory} - \\text{Driver Reserved} - \\text{Alignment Padding}$.\n    *   $102,400 \\text{ bytes (100KB)} - 1,024 \\text{ bytes (approx)} \\approx 101,376 \\text{ bytes}$.\n*   **Mechanism:** The micro-benchmark successfully invoked `cudaFuncSetAttribute` with `cudaFuncAttributeMaxDynamicSharedMemorySize`. This opt-in call bypasses the 48 KB static limit reported by the standard API query, allowing the kernel to access the full 99 KB capacity of the SM.\n\n**3. Ruling out other causes:**\n*   **Frequency Locking:** Affects clock speeds, not memory address space size.\n*   **SM Masking (CUDA_VISIBLE_DEVICES / MPS):** Affects the *number* of available SMs, not the *amount* of shared memory per SM.\n*   **Virtualisation:** Virtualised environments (like vGPU) typically report the *correct* API values or restrict the memory further via the hypervisor. They do not typically allow a guest to allocate *more* memory than the API claims is available unless the guest driver is aware of the opt-in feature. Since the measured value matches a specific physical architecture perfectly, this indicates **bare-metal access** or full passthrough, not a restricted virtual interface.\n\n### Conclusion\n\nThe system is functioning correctly. The anomaly flag is a result of the benchmark comparing the \"Static Default Limit\" against the \"Physical Opt-in Limit.\"\n\n*   **Identity:** The device is almost certainly an **NVIDIA Ampere GPU (SM 8.6)**, such as an **RTX 3090** or **NVIDIA A10**.\n*   **Status:** No anti-tampering evasion or virtualization spoofing is detected. The discrepancy confirms the application successfully utilized extended shared memory features.\n\n**Confidence Level:** **99%**\n(Calculation $101,376$ bytes is a unique fingerprint for the 100KB Shared Memory configuration of SM 8.6).",
-        "timestamp": 369.8721561431885
-      }
-    ],
-    "elapsed_seconds": 783.8726518154144
+    "anomalies": [],
+    "elapsed_seconds": 174.35991549491882
   },
   "methodology": {
     "l1_latency_cycles": {

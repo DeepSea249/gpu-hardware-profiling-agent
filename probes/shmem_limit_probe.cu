@@ -143,6 +143,9 @@ int main(int argc, char** argv) {
     CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
     printf("REPORTED_SHMEM_PER_BLOCK=%zu\n", prop.sharedMemPerBlock);
     printf("REPORTED_SHMEM_PER_SM=%zu\n", prop.sharedMemPerMultiprocessor);
+    // sharedMemPerBlockOptin is the hardware maximum with cudaFuncSetAttribute opt-in
+    // (available on sm_70+; equals sharedMemPerBlock on older architectures)
+    printf("REPORTED_SHMEM_PER_BLOCK_OPTIN=%zu\n", prop.sharedMemPerBlockOptin);
 
     CUDA_CHECK(cudaFree(d_output));
 
