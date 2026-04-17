@@ -7,11 +7,12 @@ variables so no credentials are ever hardcoded in source.
 
 Environment variables
 ---------------------
-API_KEY       (required) API key / access token.
-LLM_BASE_URL  (optional) Base URL of the OpenAI-compatible endpoint.
+API_KEY       (required, eval)  API key for the evaluation endpoint.
+              Falls back to DASHSCOPE_API_KEY for local development.
+BASE_URL      (optional) Base URL of the OpenAI-compatible endpoint.
               Default: https://api.openai.com/v1
-LLM_MODEL     (optional) Model name.
-              Default: gpt-4o
+BASE_MODEL    (optional) Model name.
+              Default: gpt-4o (eval) / glm-5 (DashScope dev fallback)
 
 Usage:
     from src.llm_client import LLMClient
@@ -54,13 +55,15 @@ class LLMClient:
     """OpenAI-compatible LLM client with retry & streaming support.
 
     Configured entirely via environment variables:
-        API_KEY       — API key (also accepts DASHSCOPE_API_KEY as legacy fallback)
-        LLM_BASE_URL  — endpoint base URL (default: https://api.openai.com/v1)
-        LLM_MODEL     — model name        (default: gpt-4o)
+        API_KEY       — API key (eval mode primary; DASHSCOPE_API_KEY accepted as
+                        dev-mode fallback when API_KEY is absent)
+        BASE_URL      — endpoint base URL (default: https://api.openai.com/v1)
+        BASE_MODEL    — model name (default: gpt-4o for eval;
+                        glm-5 for DashScope dev fallback)
     """
 
-    DEFAULT_MODEL = os.getenv("LLM_MODEL", "gpt-4o")
-    DEFAULT_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
+    DEFAULT_MODEL = "gpt-4o"                        # eval default; overridden by BASE_MODEL
+    DEFAULT_BASE_URL = "https://api.openai.com/v1"  # eval default; overridden by BASE_URL
 
     def __init__(
         self,
@@ -79,11 +82,11 @@ class LLMClient:
                 "(or put it in .env / pass api_key= explicitly)."
             )
 
-        # Resolve base URL: explicit arg → LLM_BASE_URL env → auto-detect DashScope
-        # → default (OpenAI).  Auto-detect fires only when the key was obtained
-        # from DASHSCOPE_API_KEY (no API_KEY set) and no explicit URL was given,
-        # so the eval environment (which sets API_KEY) is never affected.
-        _explicit_url = base_url or os.getenv("LLM_BASE_URL")
+        # Resolve base URL.
+        # Priority: explicit arg → BASE_URL env → auto-detect DashScope dev → default.
+        # Auto-detect fires only when API_KEY is absent (dev mode), so the eval
+        # environment (which always sets API_KEY) is never routed to DashScope.
+        _explicit_url = base_url or os.getenv("BASE_URL")
         _auto_dashscope = False
         if _explicit_url:
             self._base_url = _explicit_url
@@ -95,16 +98,16 @@ class LLMClient:
         else:
             self._base_url = self.DEFAULT_BASE_URL
         self._client = OpenAI(api_key=resolved_key, base_url=self._base_url)
-        # Model: explicit arg → LLM_MODEL env → DashScope fallback → OpenAI default
-        _env_model = os.getenv("LLM_MODEL")
+        # Model: explicit arg → BASE_MODEL env → DashScope dev fallback → eval default
+        _env_model = os.getenv("BASE_MODEL")
         if model:
             self.model = model
         elif _env_model:
             self.model = _env_model
         elif _auto_dashscope:
-            # gpt-4o is not available on DashScope; use a widely available model
-            self.model = "qwen-plus"
-            logger.info("Auto-selected model 'qwen-plus' for DashScope endpoint")
+            # Use GLM-5 when running in DashScope dev mode
+            self.model = "glm-5"
+            logger.info("Auto-selected model 'glm-5' for DashScope dev endpoint")
         else:
             self.model = self.DEFAULT_MODEL
         # enable_thinking is a DashScope/GLM-specific extension; ignored elsewhere
