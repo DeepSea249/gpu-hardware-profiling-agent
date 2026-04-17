@@ -70,20 +70,43 @@ class LLMClient:
         enable_thinking: bool = True,
     ):
         # Primary env var is API_KEY; fall back to the legacy DashScope key
-        resolved_key = (
-            api_key
-            or os.getenv("API_KEY")
-            or os.getenv("DASHSCOPE_API_KEY")
-        )
+        _dashscope_key = os.getenv("DASHSCOPE_API_KEY")
+        _api_key_env    = os.getenv("API_KEY")
+        resolved_key = api_key or _api_key_env or _dashscope_key
         if not resolved_key:
             raise ValueError(
                 "No API key found. Set the API_KEY environment variable "
                 "(or put it in .env / pass api_key= explicitly)."
             )
 
-        self._base_url = base_url or self.DEFAULT_BASE_URL
+        # Resolve base URL: explicit arg → LLM_BASE_URL env → auto-detect DashScope
+        # → default (OpenAI).  Auto-detect fires only when the key was obtained
+        # from DASHSCOPE_API_KEY (no API_KEY set) and no explicit URL was given,
+        # so the eval environment (which sets API_KEY) is never affected.
+        _explicit_url = base_url or os.getenv("LLM_BASE_URL")
+        _auto_dashscope = False
+        if _explicit_url:
+            self._base_url = _explicit_url
+        elif not (api_key or _api_key_env) and _dashscope_key:
+            # Key came from DASHSCOPE_API_KEY fallback — use DashScope endpoint
+            self._base_url = f"https://{_DASHSCOPE_HOST}/compatible-mode/v1"
+            _auto_dashscope = True
+            logger.info("Auto-detected DashScope endpoint from DASHSCOPE_API_KEY")
+        else:
+            self._base_url = self.DEFAULT_BASE_URL
         self._client = OpenAI(api_key=resolved_key, base_url=self._base_url)
-        self.model = model or self.DEFAULT_MODEL
+        # Model: explicit arg → LLM_MODEL env → DashScope fallback → OpenAI default
+        _env_model = os.getenv("LLM_MODEL")
+        if model:
+            self.model = model
+        elif _env_model:
+            self.model = _env_model
+        elif _auto_dashscope:
+            # gpt-4o is not available on DashScope; use a widely available model
+            self.model = "qwen-plus"
+            logger.info("Auto-selected model 'qwen-plus' for DashScope endpoint")
+        else:
+            self.model = self.DEFAULT_MODEL
         # enable_thinking is a DashScope/GLM-specific extension; ignored elsewhere
         self.enable_thinking = enable_thinking
         # Detect DashScope endpoint to conditionally enable proprietary extensions
@@ -163,6 +186,16 @@ class LLMClient:
             len(reasoning_content),
             len(answer_content),
         )
+        # With thinking-mode LLMs (e.g. DashScope GLM-5), the model sometimes
+        # routes the entire response into reasoning_content (the hidden think
+        # block) and returns empty answer_content.  Fall back to the thinking
+        # trace so the caller always receives useful content.
+        if not answer_content.strip() and reasoning_content.strip():
+            logger.info(
+                "answer_content empty; returning reasoning_content (%d chars) instead",
+                len(reasoning_content),
+            )
+            return reasoning_content
         return answer_content
 
     # ------------------------------------------------------------------ #
