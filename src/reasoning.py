@@ -140,6 +140,22 @@ class ReasoningEngine:
             f"(dev={entry['deviation_pct']:.1f}%)"
         )
 
+    def log_cross_verification_error(self, metric: str, error_msg: str):
+        """
+        Log a failed cross-verification with an explicit error status.
+
+        Produces a cross_verifications entry with agreement=null and an
+        'error' field so downstream consumers (LLM reasoning, examiners)
+        always see a record rather than a silent gap.
+        """
+        entry = {
+            'metric': metric,
+            'agreement': None,
+            'error': error_msg,
+        }
+        self.cross_verifications.append(entry)
+        logger.warning(f"Cross-verify [{metric}]: ERROR — {error_msg}")
+
     def set_methodology(self, metric: str, method: str, details: str):
         """Record the methodology used for a specific metric."""
         self.methodology[metric] = {

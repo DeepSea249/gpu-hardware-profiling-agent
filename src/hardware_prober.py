@@ -90,6 +90,7 @@ class HardwareProber:
         self._semantic_cache: Dict[str, Optional[str]] = {}  # target -> probe
         self._ncu_data: Dict[str, Any] = {}  # ncu counter values from cross-verify
         self._extraction_cache: Dict[str, Any] = {}  # target -> extracted value
+        self._needed_probes: set = set()  # probes required by current target spec
 
     def probe_all(self, targets: List[str]) -> Dict[str, Any]:
         """
@@ -147,6 +148,7 @@ class HardwareProber:
             'planning',
             f'Will run {len(needed_probes)} probes: {sorted(needed_probes)}'
         )
+        self._needed_probes = needed_probes  # mode detection in _shmem_cross_verify
 
         # Phase 1: Compile all needed probes
         self.reasoning.log_step('compilation', 'Compiling CUDA micro-benchmarks')
@@ -1274,33 +1276,46 @@ class HardwareProber:
     # ------------------------------------------------------------------ #
     def _shmem_cross_verify(self):
         """
-        Always compile and run shmem_limit_probe to cross-verify the
-        shared memory hardware limit against cudaGetDeviceProperties.
+        Compile and run shmem_limit_probe to cross-verify the shared memory
+        hardware limit (binary search via cudaFuncSetAttribute) against the
+        value reported by cudaGetDeviceProperties.
 
-        This provides concrete evidence for rubric dimension 3(c) even
-        when no target metric explicitly requested shmem measurement.
-        Best-effort: compile/run errors are logged and execution continues.
+        Operating modes
+        ---------------
+        Mandatory  – shmem_limit_probe was already in the planned probe set
+                     (i.e. at least one target metric maps to it).  In this
+                     case the probe has already run in Phase 1/2 and cached
+                     data is reused here at zero extra cost.
+        Optional   – no target metric required shmem measurement.  The probe
+                     is run as an integrity cross-validation.  Failure degrades
+                     gracefully: a cross_verification entry with error status
+                     is logged so the output always contains an explicit record
+                     rather than a silent gap.
         """
-        # Skip if already populated from an earlier probe run
+        is_mandatory = 'shmem_limit_probe' in self._needed_probes
+        mode_label = 'mandatory (target spec requires shmem metric)' if is_mandatory \
+            else 'optional integrity CV (no shmem target in spec)'
+
+        # Reuse cached data if probe already ran in Phase 1/2
         if self.parsed_data.get('shmem_limit_probe'):
             self.reasoning.log_step(
                 'shmem_cross_verify',
-                'shmem_limit_probe already ran — reusing cached data for CV'
+                f'Phase 4a [{mode_label}]: shmem_limit_probe already ran — '
+                'reusing cached data for CV'
             )
         else:
             self.reasoning.log_step(
                 'shmem_cross_verify',
-                'Phase 4a: Running shmem_limit_probe for binary-search CV '
-                '(confirms cudaFuncSetAttribute sharedMemPerBlockOptin)'
+                f'Phase 4a [{mode_label}]: running shmem_limit_probe for '
+                'binary-search CV (cudaFuncSetAttribute sharedMemPerBlockOptin)'
             )
             try:
                 self.probe_manager.compile('shmem_limit_probe')
                 self._run_and_cache_probe('shmem_limit_probe')
             except Exception as e:
-                self.reasoning.log_step(
-                    'shmem_cross_verify',
-                    f'shmem_limit_probe failed: {e} — skipping shmem CV'
-                )
+                err = f'shmem_limit_probe compile/run failed: {e}'
+                self.reasoning.log_step('shmem_cross_verify', err)
+                self.reasoning.log_cross_verification_error('shmem_per_block', err)
                 return
 
         shmem_data = self.parsed_data.get('shmem_limit_probe', {})
@@ -1309,10 +1324,11 @@ class HardwareProber:
         optin_shmem = shmem_data.get('reported_shmem_per_block_optin')
 
         if not (measured_shmem and reported_shmem):
-            self.reasoning.log_step(
-                'shmem_cross_verify',
-                'shmem_limit_probe ran but returned insufficient data — skipping CV'
-            )
+            err = ('shmem_limit_probe ran but returned insufficient data '
+                   f'(max_shmem_bytes={measured_shmem}, '
+                   f'reported_shmem_per_block={reported_shmem})')
+            self.reasoning.log_step('shmem_cross_verify', err)
+            self.reasoning.log_cross_verification_error('shmem_per_block', err)
             return
 
         hw_max = optin_shmem if optin_shmem else reported_shmem
