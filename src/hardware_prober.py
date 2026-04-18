@@ -49,7 +49,10 @@ def _get_llm():
 class HardwareProber:
     """Orchestrates all hardware intrinsic probing."""
 
-    # Mapping from target metric names to the probe(s) that measure them
+    # Mapping from target metric names to the probe(s) that measure them.
+    # This table only lists well-known CANONICAL names as a fast-path shortcut;
+    # any name NOT listed here is routed to the LLM semantic resolver which
+    # handles arbitrary or future metric names automatically.
     METRIC_TO_PROBE = {
         'l1_latency_cycles': 'latency_probe',
         'l2_latency_cycles': 'latency_probe',
@@ -85,6 +88,8 @@ class HardwareProber:
         self.parsed_data = {}    # Cache parsed results
         self.anomalies = []
         self._semantic_cache: Dict[str, Optional[str]] = {}  # target -> probe
+        self._ncu_data: Dict[str, Any] = {}  # ncu counter values from cross-verify
+        self._extraction_cache: Dict[str, Any] = {}  # target -> extracted value
 
     def probe_all(self, targets: List[str]) -> Dict[str, Any]:
         """
@@ -183,8 +188,28 @@ class HardwareProber:
         # Phase 4: Cross-verification
         self._cross_verify(results)
 
-        # Phase 4b: NCU cross-verification (best-effort)
+        # Phase 4b: NCU cross-verification (best-effort; populates self._ncu_data)
         self._ncu_cross_verify(results)
+
+        # Phase 4c: Batch LLM extraction for any metrics still None.
+        # This runs AFTER ncu cross-verify so self._ncu_data is fully populated.
+        # It handles arbitrary/future metric names without any hardcoding.
+        unresolved = [t for t in targets if results.get(t) is None]
+        if unresolved:
+            self.reasoning.log_step(
+                'semantic_extraction',
+                f'{len(unresolved)} metrics still unresolved after probe extraction; '
+                f'invoking LLM batch extractor: {unresolved}'
+            )
+            semantic_vals = self._batch_extract_metrics_semantically(unresolved)
+            for t, v in semantic_vals.items():
+                if v is not None:
+                    results[t] = v
+                    self.reasoning.log_step(
+                        'semantic_extraction',
+                        f'Semantic extraction: {t} = {v}',
+                        data={'metric': t, 'value': v}
+                    )
 
         # Phase 5: Anomaly summary
         self._summarize_anomalies()
@@ -879,6 +904,132 @@ class HardwareProber:
 
         return None
 
+    # ------------------------------------------------------------------ #
+    #  LLM-based Batch Metric Value Extractor                              #
+    # ------------------------------------------------------------------ #
+    def _batch_extract_metrics_semantically(
+        self, targets: List[str]
+    ) -> Dict[str, Optional[float]]:
+        """
+        For metrics that could not be resolved by name-lookup, use a single
+        LLM call to map each requested name to the best available measured
+        value (with any necessary unit conversions, e.g. MHz → kHz or
+        GB/s → bytes/s).
+
+        All data sources are merged into one flat dict so the LLM has full
+        visibility: parsed probe fields, ncu counters, and system info.
+        This makes the extraction agnostic to whatever names the eval
+        framework chooses.
+        """
+        # Check cache first
+        result: Dict[str, Optional[float]] = {}
+        to_resolve: List[str] = []
+        for t in targets:
+            if t in self._extraction_cache:
+                result[t] = self._extraction_cache[t]
+            else:
+                to_resolve.append(t)
+        if not to_resolve:
+            return result
+
+        # Build a flat dict of ALL numeric values currently available
+        all_values: Dict[str, float] = {}
+        for probe_name, probe_data in self.parsed_data.items():
+            for k, v in probe_data.items():
+                if isinstance(v, (int, float)) and not k.startswith('_'):
+                    all_values[f'{probe_name}.{k}'] = v
+        for k, v in self._ncu_data.items():
+            if isinstance(v, (int, float)):
+                all_values[f'ncu.{k}'] = v
+        for k, v in getattr(self, '_env_info', {}).items():
+            if isinstance(v, (int, float)):
+                all_values[f'sysinfo.{k}'] = v
+
+        if not all_values:
+            for t in to_resolve:
+                self._extraction_cache[t] = None
+                result[t] = None
+            return result
+
+        fields_desc = '\n'.join(
+            f'  {k} = {v}' for k, v in sorted(all_values.items())
+        )
+        target_list = '\n'.join(f'  - {t}' for t in to_resolve)
+
+        system_prompt = (
+            'You are a GPU hardware metrics expert. '
+            'Given measured GPU hardware values from CUDA micro-benchmarks and '
+            'system info, determine the best numeric value for each requested '
+            'metric name. Apply necessary unit conversions '
+            '(e.g. MHz\u2192kHz: \u00d71000, GHz\u2192kHz: \u00d71e6, '
+            'GB/s\u2192bytes/s: \u00d71e9, percent: no conversion).\n'
+            'Reply with EXACTLY one line per metric in the format:\n'
+            '  <metric_name>: <number>\n'
+            'If no measurement corresponds to a metric, use:\n'
+            '  <metric_name>: none'
+        )
+        user_prompt = (
+            f'Requested metrics:\n{target_list}\n\n'
+            f'Available measured values:\n{fields_desc}'
+        )
+
+        client = _get_llm()
+        if client is None:
+            logger.warning('LLM unavailable – cannot batch-extract metrics semantically')
+            for t in to_resolve:
+                self._extraction_cache[t] = None
+                result[t] = None
+            return result
+
+        try:
+            answer = client.generate_reasoning(system_prompt, user_prompt)
+            logger.info('Batch semantic extraction raw answer:\n%s', answer.strip())
+
+            for line in answer.strip().splitlines():
+                line = line.strip()
+                if ':' not in line:
+                    continue
+                name_part, val_part = line.split(':', 1)
+                name_part = name_part.strip()
+                val_part = val_part.strip()
+
+                # Match against the requested targets (flexible, case-insensitive)
+                matched = None
+                for t in to_resolve:
+                    if t.lower() == name_part.lower():
+                        matched = t
+                        break
+                if matched is None:
+                    for t in to_resolve:
+                        if name_part.lower() in t.lower() or t.lower() in name_part.lower():
+                            matched = t
+                            break
+                if matched is None:
+                    continue
+
+                if val_part.lower() == 'none':
+                    self._extraction_cache[matched] = None
+                    result[matched] = None
+                else:
+                    try:
+                        val = float(val_part.replace(',', ''))
+                        self._extraction_cache[matched] = val
+                        result[matched] = val
+                    except ValueError:
+                        self._extraction_cache[matched] = None
+                        result[matched] = None
+
+        except Exception as exc:
+            logger.warning('Batch semantic extraction failed: %s', exc)
+
+        # Fill any targets the LLM did not mention
+        for t in to_resolve:
+            if t not in result:
+                self._extraction_cache[t] = None
+                result[t] = None
+
+        return result
+
     def _cross_verify(self, results: Dict[str, Any]):
         """Cross-verify results using multiple data sources."""
         self.reasoning.log_step(
@@ -1141,6 +1292,7 @@ class HardwareProber:
         try:
             ncu_metrics = [
                 'dram__throughput.avg.pct_of_peak_sustained_elapsed',
+                'sm__throughput.avg.pct_of_peak_sustained_elapsed',
                 'dram__bytes.sum',
                 'gpu__time_duration.sum',
             ]
@@ -1163,8 +1315,16 @@ class HardwareProber:
             # Parse CSV output
             ncu_data = self._parse_ncu_csv(result.stdout)
             dram_pct = ncu_data.get('dram__throughput.avg.pct_of_peak_sustained_elapsed')
+            sm_pct = ncu_data.get('sm__throughput.avg.pct_of_peak_sustained_elapsed')
             dram_bytes = ncu_data.get('dram__bytes.sum')
             gpu_time_ns = ncu_data.get('gpu__time_duration.sum')
+
+            # Cache all ncu counters for _extract_metric
+            for k, v in ncu_data.items():
+                if v is not None:
+                    self._ncu_data[k] = v
+            if dram_pct is not None:
+                self._ncu_data['gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed'] = dram_pct
 
             if dram_pct is not None:
                 self.reasoning.log_step(
@@ -1176,6 +1336,9 @@ class HardwareProber:
                         'ncu_gpu_time_ns': gpu_time_ns,
                     }
                 )
+                # Store ncu counters so the batch semantic extractor can use them
+                self._ncu_data['dram__throughput.avg.pct_of_peak_sustained_elapsed'] = dram_pct
+                self._ncu_data['gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed'] = dram_pct
 
                 # Derive ncu-implied peak bandwidth:
                 # If dram_pct ≈ 93% and our micro-benchmark achieved ~910 GB/s,

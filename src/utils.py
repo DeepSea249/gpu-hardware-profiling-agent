@@ -62,6 +62,7 @@ def get_gpu_info() -> dict:
         'power.draw': 'power_draw_w',
         'power.limit': 'power_limit_w',
         'persistence_mode': 'persistence_mode',
+        'memory.bus.width': 'memory_bus_width_bits',
     }
 
     for field, key in fields.items():

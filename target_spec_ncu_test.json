@@ -1,0 +1,9 @@
+{
+    "targets": [
+        "launch__sm_count",
+        "device__attribute_max_gpu_frequency_khz",
+        "dram__bytes_read.sum.per_second",
+        "sharedmem_max_allocation_bytes",
+        "bank_conflict_slowdown_ratio"
+    ]
+}
