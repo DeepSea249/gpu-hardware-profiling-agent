@@ -1069,9 +1069,10 @@ class HardwareProber:
                     else 'cudaGetDeviceProperties base clock'
                 )
 
-                # PASS = measured is not overclock (≤ max * 1.05).
-                # Being below max is expected under normal boost.
-                agree = measured_clock <= (reference_clock * 1.05)
+                # PASS = measured clock is within 8% of the reference (max boost clock).
+                # Under normal boost the GPU hovers below max but within a few percent.
+                # If measured is more than 8% below max it indicates throttling/lock.
+                agree = abs(measured_clock - reference_clock) / max(reference_clock, 1) * 100 <= 8.0
 
                 self.reasoning.log_cross_verification(
                     'clock_frequency',
