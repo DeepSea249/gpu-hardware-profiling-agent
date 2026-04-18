@@ -1150,6 +1150,28 @@ class HardwareProber:
                         f'stable={stable_mean:.0f} MHz, ratio={warmup_ratio:.3f}). '
                         f'Consistent with natural GPU Boost — no frequency lock.',
                     )
+                elif below_max and warmup_ratio is not None and 0.95 <= warmup_ratio < 0.99:
+                    # Borderline case: slight ramp but ambiguous
+                    pct_below = (1 - stable_mean / max_sm_clock) * 100
+                    if stable_cv is not None and stable_cv < 0.005:
+                        # Near-zero CV + borderline ratio → likely externally locked
+                        self.reasoning.log_step(
+                            'cross_verify',
+                            f'Clock {stable_mean:.0f} MHz is {pct_below:.1f}% below rated max '
+                            f'{max_sm_clock:.0f} MHz. Warmup_ratio={warmup_ratio:.4f} is '
+                            f'borderline (0.95–0.99) AND stable CV={stable_cv:.3f}% is near-zero. '
+                            f'Combined evidence suggests a possible external frequency lock with '
+                            f'minimal measurement noise. Measured value reflects actual runtime frequency.',
+                        )
+                    else:
+                        # Some trial variance → lean toward natural boost approaching a cap
+                        self.reasoning.log_step(
+                            'cross_verify',
+                            f'Clock {stable_mean:.0f} MHz is {pct_below:.1f}% below rated max '
+                            f'{max_sm_clock:.0f} MHz. Warmup_ratio={warmup_ratio:.4f} (slight ramp, '
+                            f'CV={stable_cv:.3f}%). Consistent with GPU Boost stabilising below '
+                            f'the rated ceiling — measured value reflects actual runtime frequency.',
+                        )
                 elif not below_max:
                     self.reasoning.log_step(
                         'cross_verify',
@@ -1256,6 +1278,39 @@ class HardwareProber:
                     expected=hw_max,
                     measured=measured_shmem,
                 )
+
+        # ── Physics-based cross-verification: measured BW vs theoretical peak ──
+        # Theoretical peak = (bus_width_bits / 8) × (max_mem_clock_mhz × 2 [DDR]) × 1e6 / 1e9
+        # Both DDR and GDDR6X use this formula; nvidia-smi reports the effective
+        # per-pin clock in MHz so the ×2 accounts for the dual-data-rate transfer.
+        bw_data = self.parsed_data.get('bandwidth_probe', {})
+        measured_bw = (bw_data.get('best_read_bw_gbps') or
+                       bw_data.get('best_write_bw_gbps'))
+        clock_data_bw = self.parsed_data.get('clock_probe', {})
+        bus_width = clock_data_bw.get('memory_bus_width_bits')
+        max_mem_mhz = getattr(self, '_env_info', {}).get('max_mem_clock_mhz')
+
+        if measured_bw and bus_width and max_mem_mhz and max_mem_mhz > 0:
+            theoretical_gbps = (bus_width / 8.0) * (max_mem_mhz * 2.0 * 1e6) / 1e9
+            utilization_pct = (measured_bw / theoretical_gbps) * 100.0
+            # Sustained streaming typically achieves 70–100% of theoretical peak;
+            # values outside this range suggest throttling or measurement error.
+            agree = 0.70 <= (measured_bw / theoretical_gbps) <= 1.02
+            self.reasoning.log_cross_verification(
+                'memory_bandwidth_vs_theoretical_peak',
+                'micro-benchmark (best sustained read BW)',
+                measured_bw,
+                f'theoretical peak ({bus_width}-bit bus × {max_mem_mhz:.0f} MHz × 2 DDR)',
+                theoretical_gbps,
+                agree,
+            )
+            self.reasoning.log_step(
+                'cross_verify',
+                f'Bandwidth {measured_bw:.1f} GB/s = {utilization_pct:.1f}% of '
+                f'theoretical peak {theoretical_gbps:.1f} GB/s '
+                f'({bus_width}-bit memory bus × {max_mem_mhz:.0f} MHz × 2 DDR). '
+                f'{"Consistent with physical DRAM — confirms bus width and memory clock are unthrottled." if agree else "ANOMALY: inconsistent ratio — possible memory throttling or spoofed device attributes."}',
+            )
 
     # ------------------------------------------------------------------ #
     #  NCU Cross-Verification (best-effort)                               #
