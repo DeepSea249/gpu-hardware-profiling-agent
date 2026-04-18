@@ -1,1 +1,0 @@
-{"targets": ["mem_delay", "gpu_frequency", "shared_mem_size", "num_active_sms"], "run": "build/kernels/matmul_naive"}

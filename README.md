@@ -2,7 +2,7 @@
 
 An autonomous, LLM-powered agent for probing GPU hardware characteristics via CUDA micro-benchmarks, cross-verifying with NVIDIA Nsight Compute (ncu), and performing kernel-level bottleneck analysis — all driven by a single `target_spec.json`.
 
-> **5,110 lines** of code (3,465 Python + 1,560 CUDA + 85 Shell) across 20 source files.
+All CUDA micro-benchmark probe source code is **generated autonomously by the LLM** at runtime; no pre-written benchmark files are required or used.
 
 ---
 
@@ -47,23 +47,18 @@ agent.py                       ← Main orchestrator (Phase 1 + Phase 2)
 │   ├── hardware_prober.py     ← Hardware probing pipeline + LLM semantic resolver
 │   ├── kernel_analyzer.py     ← 4-step kernel bottleneck analysis (§1.1–§1.6)
 │   ├── ncu_profiler.py        ← Nsight Compute wrapper + CSV parser + bottleneck ID
-│   ├── reasoning.py           ← Structured logging + LLM reasoning narratives
-│   ├── llm_client.py          ← DashScope API client (GLM-5, retry, streaming)
+│   ├── probe_codegen.py       ← LLM-driven autonomous CUDA probe source generation
 │   ├── probe_manager.py       ← CUDA compilation + execution manager
+│   ├── reasoning.py           ← Structured logging + LLM reasoning narratives
+│   ├── llm_client.py          ← OpenAI-compatible API client (retry, streaming)
 │   └── utils.py               ← nvidia-smi queries, statistics
-├── probes/                    ← 6 CUDA micro-benchmark source files
-│   ├── latency_probe.cu       ← Pointer-chasing (L1 / L2 / DRAM latency + L2 size)
-│   ├── bandwidth_probe.cu     ← float4 vectorised global + shared memory bandwidth
-│   ├── clock_probe.cu         ← clock64()/CUDA-events + PTX %smid SM count
-│   ├── bank_conflict_probe.cu ← Stride-comparison bank conflict penalty
-│   ├── shmem_limit_probe.cu   ← Binary-search max shared memory per block
-│   └── ncu_verify_probe.cu    ← Lightweight probe for ncu cross-verification
-├── kernels/                   ← 3 sample CUDA kernels for testing
+├── kernels/                   ← 3 sample CUDA kernels for kernel analysis
 │   ├── matmul_naive.cu        ← Naive matmul (no tiling)
 │   ├── matmul_tiled.cu        ← Tiled matmul with shared memory + unrolling
-│   └── matmul_tensor.cu       ← WMMA Tensor Core matmul (FP16→FP32, 19.4 TFLOPS)
-├── target_spec.json           ← Default evaluation specification
-└── build/                     ← Compiled binaries (auto-generated)
+│   └── matmul_tensor.cu       ← WMMA Tensor Core matmul (FP16→FP32)
+├── build/                     ← Auto-generated directory
+│   └── *_generated.cu         ← LLM-authored CUDA probe sources (cached)
+└── target_spec.json           ← Default evaluation specification
 ```
 
 ---
@@ -74,9 +69,11 @@ agent.py                       ← Main orchestrator (Phase 1 + Phase 2)
 |------|-------------|
 | `results.json` | Numeric metrics + `_reasoning` + `_methodology` + `_log` evidence |
 | `results_kernel_analysis.json` | Full ncu metric dump + structured bottleneck data |
-| `results_kernel_report.md` | LLM-authored kernel bottleneck narrative (~500 words) |
+| `results_kernel_report.md` | LLM-authored kernel bottleneck narrative |
 | `reasoning.log` | Complete step-by-step evidence trail (JSON) |
 | `agent.log` | Full execution log (timestamped) |
+
+All output files are regenerated on every agent run and are excluded from version control.
 
 ---
 
@@ -96,6 +93,8 @@ agent.py                       ← Main orchestrator (Phase 1 + Phase 2)
 | `num_active_sms` | clock_probe | Inline PTX `%smid` register, unique-ID counting |
 | `max_shmem_per_block_kb` | shmem_limit_probe | Binary search + `cudaFuncSetAttribute` opt-in |
 | `bank_conflict_penalty_cycles` | bank_conflict_probe | Stride-1 (0 conflicts) vs stride-32 (32-way) |
+
+> **Autonomous probe generation**: all CUDA source code for the probes above is written by the LLM at runtime based on design specifications. Sources are cached in `build/*_generated.cu` and reused on subsequent runs to avoid redundant API calls.
 
 ### LLM-Based Semantic Target Resolution
 
@@ -147,12 +146,13 @@ After the 4-step analysis, the LLM synthesises all findings (metrics + source co
 
 ## LLM Integration
 
-The agent uses the **GLM-5** model via Alibaba Cloud DashScope API for:
+The agent uses any **OpenAI-compatible** LLM endpoint for:
 
-1. **Semantic target resolution** — mapping non-standard metric names to probes (`enable_thinking=False`, ~100ms)
-2. **Anomaly analysis** — deep reasoning about detected anomalies (frequency locking, SM masking)
-3. **Engineering reasoning** — LLM-authored `_reasoning` and `_methodology` narratives for the grading rubric
-4. **Kernel bottleneck reports** — professional analysis reports with source-code-level recommendations
+1. **Autonomous probe generation** — the LLM writes all 6 CUDA micro-benchmark `.cu` source files from design specifications at runtime; sources are cached in `build/` and reused on subsequent runs
+2. **Semantic target resolution** — mapping non-standard metric names to probes (~100ms)
+3. **Anomaly analysis** — deep reasoning about detected anomalies (frequency locking, SM masking)
+4. **Engineering reasoning** — LLM-authored `_reasoning` and `_methodology` narratives
+5. **Kernel bottleneck reports** — professional analysis reports with source-code-level recommendations
 
 All LLM calls have **graceful fallback** to template-based text if the API is unavailable.
 
@@ -176,8 +176,21 @@ pip install openai python-dotenv tenacity
 Create a `.env` file in the project root:
 
 ```
-DASHSCOPE_API_KEY=sk-your-key-here
+# Required: API key for the LLM endpoint
+API_KEY=your-api-key-here
+
+# Optional: override the default OpenAI endpoint
+# LLM_BASE_URL=https://api.openai.com/v1
+
+# Optional: override the model name (default: gpt-4o)
+# LLM_MODEL=gpt-4o
 ```
+
+| Variable | Required | Default | Notes |
+|----------|----------|---------|-------|
+| `API_KEY` | Yes | — | API key for the LLM |
+| `LLM_BASE_URL` | No | `https://api.openai.com/v1` | Any OpenAI-compatible base URL |
+| `LLM_MODEL` | No | `gpt-4o` | Model name passed to the API |
 
 ---
 

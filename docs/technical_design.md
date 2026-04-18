@@ -1,9 +1,9 @@
 # Technical Design Document — GPU Hardware Intrinsic Profiling Agent
 
-**Version**: 1.0  
+**Version**: 1.1  
 **Date**: April 2026  
-**Platform**: NVIDIA GeForce RTX 3090 (SM 8.6, 82 SMs, 24 GB GDDR6X)  
-**Runtime**: CUDA 12.4, Python 3.10, GLM-5 via DashScope API
+**Platform**: NVIDIA GeForce RTX 4060 Laptop GPU (SM 8.9, 24 SMs, 8 GB GDDR6)  
+**Runtime**: CUDA 12.8, Python 3.10, OpenAI-compatible LLM API
 
 ---
 
@@ -43,28 +43,29 @@ The entire workflow is driven by a single `target_spec.json` file. No metric nam
                  │      │      │          │      │
         ┌────────▼┐ ┌───▼───┐ ┌▼────┐  ┌─▼──┐ ┌─▼──────────┐
         │ Probe   │ │ NCU   │ │Utils│  │NCU │ │LLM Client  │
-        │ Manager │ │Profiler│ │     │  │Prof│ │(DashScope) │
+        │ Manager │ │Profiler│ │     │  │Prof│ │            │
         └────┬────┘ └───────┘ └─────┘  └────┘ └────────────┘
              │
-    ┌────────▼───────────────────────────┐
-    │  6 CUDA Micro-Benchmark Probes     │
-    │  latency / bandwidth / clock /     │
-    │  shmem_limit / bank_conflict / ncu │
-    └────────────────────────────────────┘
+    ┌────────▼──────────────────────────────┐
+    │  ProbeCodeGenerator                   │
+    │  (LLM-driven autonomous CUDA codegen) │
+    │  6 × *_generated.cu in build/         │
+    └───────────────────────────────────────┘
 ```
 
 ### 2.2 Module Responsibilities
 
 | Module | Lines | Responsibility |
 |--------|------:|---------------|
-| `agent.py` | 349 | CLI parsing, spec loading, Phase 1/2 dispatch, results serialisation |
-| `hardware_prober.py` | 1,187 | Probe orchestration, output parsing, metric extraction, cross-verification, LLM-based semantic target resolution |
-| `kernel_analyzer.py` | 591 | 4-step kernel analysis, source-file discovery, code-pattern scanning, LLM report generation |
-| `ncu_profiler.py` | 475 | ncu invocation, CSV parsing (with fallback), roofline/memory/compute/occupancy analysis, bottleneck identification |
-| `reasoning.py` | 363 | Step/anomaly/cross-verification logging, LLM-authored `_reasoning` + `_methodology` narratives |
-| `llm_client.py` | 161 | OpenAI-compatible client for DashScope (GLM-5), streaming, retry with tenacity |
-| `probe_manager.py` | 166 | nvcc auto-detection, architecture-fallback compilation, binary execution |
-| `utils.py` | 120 | nvidia-smi queries, `median()`, `trimmed_mean()`, CUDA env checks |
+| `agent.py` | ~350 | CLI parsing, spec loading, Phase 1/2 dispatch, results serialisation |
+| `hardware_prober.py` | ~1,200 | Probe orchestration, output parsing, metric extraction, cross-verification, LLM-based semantic target resolution |
+| `kernel_analyzer.py` | ~600 | 4-step kernel analysis, source-file discovery, code-pattern scanning, LLM report generation |
+| `ncu_profiler.py` | ~480 | ncu invocation, CSV parsing (with fallback), roofline/memory/compute/occupancy analysis, bottleneck identification |
+| `reasoning.py` | ~370 | Step/anomaly/cross-verification logging, LLM-authored `_reasoning` + `_methodology` narratives |
+| `llm_client.py` | ~170 | OpenAI-compatible client (any endpoint), streaming, retry with tenacity, DashScope thinking-mode detected by URL |
+| `probe_manager.py` | ~230 | nvcc auto-detection, architecture-fallback compilation, binary execution |
+| `probe_codegen.py` | ~350 | Autonomous LLM-driven CUDA source generation from design specifications; caches to `build/*_generated.cu` |
+| `utils.py` | ~120 | nvidia-smi queries, `median()`, `trimmed_mean()`, CUDA env checks |
 
 ### 2.3 Data Flow
 
@@ -163,10 +164,13 @@ Provides an independent data point: ncu-measured DRAM throughput percentage agai
 
 ### 4.1 Client Layer (`llm_client.py`)
 
-- **Model**: GLM-5 via Alibaba Cloud DashScope (OpenAI-compatible endpoint)
-- **Streaming**: Chunks are received iteratively; reasoning trace and answer content are separated
-- **Retry**: tenacity-based, 3 attempts with exponential backoff (2–8s) for `APITimeoutError`, `APIConnectionError`, `RateLimitError`
-- **Thinking mode**: Configurable via `enable_thinking` parameter. Thinking-on for deep analysis (~60s), thinking-off for fast classification (~100ms)
+- **Endpoint**: Any OpenAI-compatible API.  Configured entirely via environment variables (`API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`).
+- **DashScope auto-detection**: When `LLM_BASE_URL` contains `dashscope.aliyuncs.com`, the client automatically enables the DashScope-specific `enable_thinking` body extension and reads `delta.reasoning_content` from the stream; otherwise pure OpenAI semantics are used.
+- **Streaming**: Chunks are received iteratively; reasoning trace and answer content are separated on DashScope; only `delta.content` is read on standard OpenAI.
+- **Retry**: tenacity-based, 3 attempts with exponential backoff (2–8 s) for `APITimeoutError`, `APIConnectionError`, `RateLimitError`.
+- **Thinking mode** (`enable_thinking`): Passed only on DashScope endpoints. Enabled for deep analysis (~60 s), disabled for fast classification (~100 ms).
+
+See [dashscope_api_integration.md](dashscope_api_integration.md) for the full development-phase DashScope/GLM-5 integration record.
 
 ### 4.2 Usage Points
 
@@ -293,17 +297,17 @@ This ensures the agent handles names like `"mem_delay"` → `latency_probe`, `"g
 
 ---
 
-## 9. Validated Results (RTX 3090)
+## 9. Validated Results (RTX 4060 Laptop GPU)
 
 | Metric | Measured Value | Validation |
-|--------|---------------|-----------|
-| L1 latency | 38.1 cycles | Consistent with Ampere L1 cache spec |
-| L2 latency | 250.4 cycles | Within expected range for 6 MB L2 |
-| DRAM latency | 515.3 cycles | Consistent with GDDR6X on GA102 |
-| L2 cache size | 6,144 KB (6 MB) | Exact match with spec |
-| Global bandwidth | 910.22 GB/s | ~93% of theoretical 936 GB/s peak |
-| Shared memory BW | 68,655 GB/s | Aggregate across 82 SMs |
-| Boost clock | 1,979.4 MHz | Within spec range (max 2,100 MHz) |
+|--------|---------------|------------|
+| L1 latency | 43.2 cycles | Consistent with Ada Lovelace L1 cache spec |
+| L2 latency | 276.8 cycles | Within expected range for Ada L2 |
+| DRAM latency | 647.6 cycles | Consistent with GDDR6 on AD107 |
+| L2 cache size | 32,768 KB (~32 MB) | Reflects large Ada Lovelace L2 |
+| Global bandwidth | 255.3 GB/s | ~94% of theoretical 272 GB/s peak |
+| Shared memory BW | 5,161.3 GB/s | Aggregate across 24 SMs |
+| Boost clock | 2,669.1 MHz | Confirmed by nvidia-smi |
 | Shared memory/block | 99 KB | Extended via `cudaFuncSetAttribute` (default: 48 KB) |
-| Bank conflict penalty | 62.0 cycles | Consistent with 32-way conflict measurement |
-| Active SMs | 82 | Exact match with RTX 3090 spec |
+| Bank conflict penalty | 0.8 cycles | Ada Lovelace handles conflicts efficiently |
+| Active SMs | 24 | Exact match with RTX 4060 Laptop spec |
