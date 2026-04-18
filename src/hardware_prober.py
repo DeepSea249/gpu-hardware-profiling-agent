@@ -1511,30 +1511,49 @@ class HardwareProber:
                 )
                 if measured_clock:
                     deviation = abs(measured_clock - ncu_clock_mhz) / max(measured_clock, 1) * 100
-                    # NCU uses --clock-control which locks the GPU to BASE clock during
-                    # profiling for reproducibility.  The clock64 probe measures the BOOST
-                    # clock under sustained load.  A large deviation is therefore EXPECTED
-                    # when the GPU is boosting; it does not indicate measurement error.
-                    # This CV is informational: it exposes the base vs boost split and
-                    # confirms the NCU profiler is operating normally.
+                    clock_data = self.parsed_data.get('clock_probe', {})
+                    is_lock_pattern = clock_data.get('is_lock_pattern', False)
+
+                    # When the GPU is frequency-locked (warmup_ratio≈1.0), the boost clock
+                    # and NCU base clock should be the same locked value — large deviation
+                    # here is a genuine anomaly.
+                    # When the GPU is naturally boosting (warmup_ratio<0.95), NCU's
+                    # --clock-control pins the GPU to base clock while clock64 measures the
+                    # boost clock under load.  The deviation is expected and explains itself;
+                    # mark agreement=True only when the deviation is consistent with the
+                    # known base-vs-boost split (i.e., ncu_clock < measured_clock).
+                    if is_lock_pattern:
+                        # Locked GPU: both should read the same value — any gap is anomalous
+                        agree = deviation < 5.0
+                        status = (
+                            f'{"AGREE" if agree else "ANOMALY"}: locked GPU, '
+                            f'NCU base ({ncu_clock_mhz:.0f} MHz) vs clock64 '
+                            f'({measured_clock:.0f} MHz), {deviation:.1f}% deviation'
+                            + ('' if agree else ' — unexpected gap despite lock, investigate throttling')
+                        )
+                    else:
+                        # Boosting GPU: NCU base clock < clock64 boost clock is expected.
+                        # Mark agreement=True only when the direction is correct (ncu < measured).
+                        # If ncu > measured it would indicate the clock64 measurement is
+                        # suspect, which is a real anomaly.
+                        agree = ncu_clock_mhz <= measured_clock * 1.02  # allow 2% tolerance
+                        status = (
+                            f'{"INFORMATIONAL" if agree else "ANOMALY"}: boosting GPU, '
+                            f'NCU --clock-control pins to base ({ncu_clock_mhz:.0f} MHz) '
+                            f'vs clock64 boost ({measured_clock:.0f} MHz), '
+                            f'{deviation:.1f}% split — '
+                            + ('expected base<boost behavior, confirms genuine boost'
+                               if agree else
+                               'NCU clock exceeds clock64 measurement — suspect clock64 result')
+                        )
                     self.reasoning.log_cross_verification(
                         'clock_frequency',
                         'micro-benchmark (clock64, boost clock)',
                         measured_clock,
                         'ncu cycles/wall-time (base clock, ncu --clock-control)',
                         ncu_clock_mhz,
-                        True,  # Always informational; base vs boost difference is expected
+                        agree,
                     )
-                    if deviation < 5.0:
-                        status = 'AGREE (<5%): GPU was locked/pinned — clock64 and NCU base-clock converge'
-                    else:
-                        status = (
-                            f'INFORMATIONAL: {deviation:.1f}% deviation is expected — '
-                            f'NCU pins to base clock ({ncu_clock_mhz:.0f} MHz) while '
-                            f'clock64 measures boost clock ({measured_clock:.0f} MHz) '
-                            f'under sustained load; confirms GPU is genuinely boosting, '
-                            f'not API-spoofed'
-                        )
                     self.reasoning.log_step('ncu_cross_verify', status)
 
         except subprocess.TimeoutExpired:
