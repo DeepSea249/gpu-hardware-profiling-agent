@@ -22,12 +22,23 @@ Flow
                   on failure → regenerate_with_error(name, err) → retry
 """
 
+import hashlib
 import os
 import re
 import logging
 from typing import Optional
 
 logger = logging.getLogger('GPUAgent.ProbeCodegen')
+
+
+def _spec_hash(probe_name: str) -> str:
+    """Return an 8-char hash of the probe's spec for cache-invalidation."""
+    spec = PROBE_SPECS.get(probe_name, {})
+    return hashlib.md5(str(spec).encode()).hexdigest()[:8]
+
+
+_HASH_PREFIX = '// SPEC_HASH:'
+
 
 # ── Lazy LLM client ───────────────────────────────────────────────────────────
 _llm_client: Optional[object] = None
@@ -490,9 +501,23 @@ class ProbeCodeGenerator:
 
         src_path = os.path.join(self.build_dir, f"{probe_name}_generated.cu")
         if os.path.exists(src_path):
-            logger.info("Re-using previously generated source: %s", src_path)
-            self._source_cache[probe_name] = src_path
-            return src_path
+            expected = _spec_hash(probe_name)
+            try:
+                with open(src_path, 'r') as f:
+                    first_line = f.readline()
+                cached_hash = first_line.strip().replace(_HASH_PREFIX, '') if first_line.startswith(_HASH_PREFIX) else ''
+            except Exception:
+                cached_hash = ''
+            if cached_hash == expected:
+                logger.info("Re-using previously generated source: %s", src_path)
+                self._source_cache[probe_name] = src_path
+                return src_path
+            else:
+                logger.info(
+                    "Spec changed for '%s' (hash %s→%s); regenerating source...",
+                    probe_name, cached_hash or 'none', expected
+                )
+                os.remove(src_path)
 
         return self._generate_fresh(probe_name)
 
@@ -530,8 +555,9 @@ class ProbeCodeGenerator:
         fixed_code = client.generate_reasoning(system, user)
         fixed_code = _strip_code_fences(fixed_code)
 
+        hash_comment = f"{_HASH_PREFIX}{_spec_hash(probe_name)}\n"
         with open(src_path, 'w') as f:
-            f.write(fixed_code)
+            f.write(hash_comment + fixed_code)
         self._source_cache[probe_name] = src_path
         logger.info("Fixed source written (%d chars): %s", len(fixed_code), src_path)
         return src_path
@@ -573,8 +599,9 @@ class ProbeCodeGenerator:
         code = _strip_code_fences(code)
 
         src_path = os.path.join(self.build_dir, f"{probe_name}_generated.cu")
+        hash_comment = f"{_HASH_PREFIX}{_spec_hash(probe_name)}\n"
         with open(src_path, 'w') as f:
-            f.write(code)
+            f.write(hash_comment + code)
         self._source_cache[probe_name] = src_path
         logger.info(
             "Generated '%s' source: %d chars → %s", probe_name, len(code), src_path
