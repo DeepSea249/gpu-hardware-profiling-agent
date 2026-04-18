@@ -89,6 +89,7 @@ REPORTED_MEM_CLOCK_KHZ=<d>
 REPORTED_SM_COUNT=<d>
 REPORTED_DEVICE_NAME=<string>
 REPORTED_COMPUTE_CAP=<d>.<d>
+MEMORY_BUS_WIDTH_BITS=<d>
 CLOCK_DEVIATION_PCT=<f2>
 CLOCK_PROBE_END
 
@@ -118,6 +119,7 @@ Step 2 – Clock frequency measurement (5 trials, 1 block × 1 thread):
 
 Step 3 – Device properties:
   cudaGetDeviceProperties(&prop, 0); print REPORTED_* lines.
+  Print MEMORY_BUS_WIDTH_BITS=prop.memoryBusWidth.
   deviation = 100.0 * (median_clock - prop.clockRate/1000.0) / (prop.clockRate/1000.0).
 
 === IMPLEMENTATION ===

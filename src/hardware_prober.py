@@ -643,6 +643,11 @@ class HardwareProber:
                 data['reported_compute_cap'] = match.group(1).strip()
                 continue
 
+            match = re.match(r'MEMORY_BUS_WIDTH_BITS=(\d+)', line)
+            if match:
+                data['memory_bus_width_bits'] = int(match.group(1))
+                continue
+
             # Anomalies
             match = re.match(r'ANOMALY=(\w+)\s+measured=([\d.]+)\s+reported=([\d.]+)', line)
             if match:
@@ -963,6 +968,13 @@ class HardwareProber:
             'metric name. Apply necessary unit conversions '
             '(e.g. MHz\u2192kHz: \u00d71000, GHz\u2192kHz: \u00d71e6, '
             'GB/s\u2192bytes/s: \u00d71e9, percent: no conversion).\n'
+            'NVIDIA naming conventions to help you map metric names to values:\n'
+            '  - "fb" = framebuffer = DRAM/memory (e.g. fb_bus_width = memory bus width in bits)\n'
+            '  - "dram" = device DRAM, same as global memory\n'
+            '  - "sm" = streaming multiprocessor\n'
+            '  - "launch__sm_count" = number of active SMs during kernel launch\n'
+            '  - "device__attribute_*" = static device attribute (often from driver/cudaGetDeviceProperties)\n'
+            '  - "*.pct_of_peak_sustained_elapsed" = percentage of peak throughput, no unit conversion needed\n'
             'Reply with EXACTLY one line per metric in the format:\n'
             '  <metric_name>: <number>\n'
             'If no measurement corresponds to a metric, use:\n'
