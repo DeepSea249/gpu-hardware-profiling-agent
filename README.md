@@ -1,5 +1,10 @@
 # GPU Hardware Intrinsic Profiling Agent
 
+This repository now contains both course phases:
+
+- Phase 1: GPU hardware intrinsic probing and kernel bottleneck analysis
+- Phase 2: An agentic LoRA kernel optimizer that maintains `optimized_lora.cu`
+
 An autonomous, LLM-powered agent for probing GPU hardware characteristics via CUDA micro-benchmarks, cross-verifying with NVIDIA Nsight Compute (ncu), and performing kernel-level bottleneck analysis — all driven by a single `target_spec.json`.
 
 All CUDA micro-benchmark probe source code is **generated autonomously by the LLM** at runtime; no pre-written benchmark files are required or used.
@@ -8,17 +13,29 @@ All CUDA micro-benchmark probe source code is **generated autonomously by the LL
 
 ## Quick Start — Evaluation Entry Point
 
+`run.sh` now defaults to the Phase 2 submission workflow required by `project_phase2_requirement.md`. Use `--phase phase1` only when you want the original hardware-probing entrypoint.
+
 ```bash
-# 1. Place your target_spec.json in the project root
-# 2. Run:
+# Phase 2 (default): generate and iteratively optimize optimized_lora.cu
 chmod +x run.sh && ./run.sh
 ```
 
-Override defaults with CLI flags:
+```bash
+# Phase 1 (legacy): hardware probing + optional kernel analysis
+./run.sh --phase phase1 --target-spec /path/to/target_spec.json
+```
+
+Override Phase 2 defaults with CLI flags:
 
 ```bash
-./run.sh --target-spec /path/to/spec.json --output results.json --trials 10
+./run.sh --search-rounds 6 --time-budget-minutes 25 --benchmark-sizes 3584,4096,4608
 ```
+
+The Phase 2 agent writes:
+
+- `optimized_lora.cu` — the current best single-file implementation
+- `phase2_results.json` — candidate-by-candidate benchmark history
+- `phase2_summary.md` — compact optimization summary
 
 ### target_spec.json Format
 

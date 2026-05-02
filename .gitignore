@@ -23,6 +23,10 @@ results_*.json
 results_*.md
 reasoning.log
 agent.log
+phase2_results.json
+phase2_summary.md
+phase2_search_history.json
+optimized_lora.cu
 
 # Temporary / scratch files
 tmp*.json

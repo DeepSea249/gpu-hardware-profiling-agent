@@ -37,6 +37,7 @@ import tempfile
 
 from src.hardware_prober import HardwareProber
 from src.kernel_analyzer import KernelAnalyzer
+from src.lora_optimizer import LoRAOptimizationAgent
 from src.reasoning import ReasoningEngine
 from src import utils
 
@@ -138,6 +139,39 @@ def run_kernel_analysis(binary_path: str, args, reasoning: ReasoningEngine,
     return analysis
 
 
+def run_lora_optimization(args) -> dict:
+    """
+    Phase 2: Agentic LoRA optimization.
+
+    Generates candidate single-file CUDA / PyTorch extensions, benchmarks them
+    on synthetic inputs inside the public evaluation range, and keeps the best
+    validated implementation at args.optimized_path.
+    """
+    logger.info("=" * 60)
+    logger.info("Phase 2: Agentic LoRA Optimization")
+    logger.info("=" * 60)
+
+    benchmark_sizes = [
+        int(chunk.strip())
+        for chunk in args.benchmark_sizes.split(',')
+        if chunk.strip()
+    ]
+
+    optimizer = LoRAOptimizationAgent(
+        project_root=os.path.dirname(os.path.abspath(__file__)),
+        build_dir=args.build_dir,
+        optimized_path=args.optimized_path,
+        summary_path=args.summary_path,
+        benchmark_sizes=benchmark_sizes,
+        benchmark_warmup=args.benchmark_warmup,
+        benchmark_iters=args.benchmark_iters,
+        search_rounds=args.search_rounds,
+        time_budget_seconds=int(args.time_budget_minutes * 60),
+        use_llm=not args.skip_llm,
+    )
+    return optimizer.run()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='GPU Hardware Intrinsic Profiling Agent',
@@ -158,6 +192,10 @@ Examples:
         """
     )
 
+    parser.add_argument(
+        '--phase', type=str, default='auto', choices=['auto', 'phase1', 'phase2'],
+        help='Which project phase to run (default: auto)'
+    )
     parser.add_argument(
         '--target-spec', type=str, default='/target/target_spec.json',
         help='Path to target_spec.json (default: /target/target_spec.json)'
@@ -186,6 +224,38 @@ Examples:
         '--trials', type=int, default=5,
         help='Number of repeated trials per measurement (default: 5)'
     )
+    parser.add_argument(
+        '--optimized-path', type=str, default='optimized_lora.cu',
+        help='Phase 2 output path for the current best LoRA implementation'
+    )
+    parser.add_argument(
+        '--summary-path', type=str, default='phase2_summary.md',
+        help='Phase 2 markdown summary path'
+    )
+    parser.add_argument(
+        '--search-rounds', type=int, default=5,
+        help='Phase 2 candidate budget (default: 5)'
+    )
+    parser.add_argument(
+        '--time-budget-minutes', type=float, default=20.0,
+        help='Phase 2 search time budget in minutes (default: 20)'
+    )
+    parser.add_argument(
+        '--benchmark-sizes', type=str, default='3584,4096,4608',
+        help='Comma-separated Phase 2 benchmark sizes (default: 3584,4096,4608)'
+    )
+    parser.add_argument(
+        '--benchmark-warmup', type=int, default=5,
+        help='Phase 2 warmup iterations per benchmark size (default: 5)'
+    )
+    parser.add_argument(
+        '--benchmark-iters', type=int, default=15,
+        help='Phase 2 timed iterations per benchmark size (default: 15)'
+    )
+    parser.add_argument(
+        '--skip-llm', action='store_true',
+        help='Disable the LLM planner for Phase 2 candidate ordering'
+    )
 
     args = parser.parse_args()
 
@@ -199,14 +269,38 @@ Examples:
         args.target_spec = os.path.join(script_dir, args.target_spec)
     if not os.path.isabs(args.output):
         args.output = os.path.join(script_dir, args.output)
+    if not os.path.isabs(args.optimized_path):
+        args.optimized_path = os.path.join(script_dir, args.optimized_path)
+    if not os.path.isabs(args.summary_path):
+        args.summary_path = os.path.join(script_dir, args.summary_path)
 
     logger.info("=" * 60)
     logger.info("GPU Hardware Intrinsic Profiling Agent")
     logger.info("=" * 60)
+    logger.info(f"Phase: {args.phase}")
     logger.info(f"Probe directory: {args.probe_dir}")
     logger.info(f"Build directory: {args.build_dir}")
     logger.info(f"Target spec: {args.target_spec}")
     logger.info(f"Output: {args.output}")
+    logger.info(f"Optimized LoRA path: {args.optimized_path}")
+
+    target_spec = {}
+    if os.path.exists(args.target_spec):
+        target_spec = load_target_spec(args.target_spec)
+
+    phase = args.phase
+    if phase == 'auto':
+        if target_spec.get('targets') or target_spec.get('run') or args.kernel:
+            phase = 'phase1'
+        else:
+            phase = 'phase2'
+
+    if phase == 'phase2':
+        result = run_lora_optimization(args)
+        with open(args.output, 'w') as f:
+            json.dump(result, f, indent=2, default=str)
+        logger.info(f"Phase 2 results written to {args.output}")
+        return
 
     # Initialize reasoning engine
     reasoning = ReasoningEngine()
@@ -219,9 +313,7 @@ Examples:
     # ------------------------------------------------------------------ #
     # Load the evaluation spec — this single file drives the entire run   #
     # ------------------------------------------------------------------ #
-    target_spec = {}
     if os.path.exists(args.target_spec):
-        target_spec = load_target_spec(args.target_spec)
         reasoning.log_step(
             'initialization',
             f'Loaded target_spec.json: keys={list(target_spec.keys())}',
