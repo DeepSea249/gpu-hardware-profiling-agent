@@ -233,8 +233,8 @@ Examples:
         help='Phase 2 markdown summary path'
     )
     parser.add_argument(
-        '--search-rounds', type=int, default=5,
-        help='Phase 2 candidate budget (default: 5)'
+        '--search-rounds', type=int, default=8,
+        help='Phase 2 candidate budget (default: 8)'
     )
     parser.add_argument(
         '--time-budget-minutes', type=float, default=20.0,
