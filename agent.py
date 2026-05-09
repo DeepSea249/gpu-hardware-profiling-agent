@@ -241,8 +241,8 @@ Examples:
         help='Phase 2 search time budget in minutes (default: 20)'
     )
     parser.add_argument(
-        '--benchmark-sizes', type=str, default='3584,4096,4608',
-        help='Comma-separated Phase 2 benchmark sizes (default: 3584,4096,4608)'
+        '--benchmark-sizes', type=str, default='3584,3600,4096,4608',
+        help='Comma-separated Phase 2 benchmark sizes (default: 3584,3600,4096,4608)'
     )
     parser.add_argument(
         '--benchmark-warmup', type=int, default=5,

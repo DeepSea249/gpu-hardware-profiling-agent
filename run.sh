@@ -12,7 +12,7 @@ OPTIMIZED_PATH="${OPTIMIZED_PATH:-$ROOT_DIR/optimized_lora.cu}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
 SEARCH_ROUNDS="${LORA_SEARCH_ROUNDS:-8}"
 TIME_BUDGET_MINUTES="${LORA_TIME_BUDGET_MINUTES:-20}"
-BENCHMARK_SIZES="${LORA_BENCHMARK_SIZES:-3584,4096,4608}"
+BENCHMARK_SIZES="${LORA_BENCHMARK_SIZES:-3584,3600,4096,4608}"
 BENCHMARK_WARMUP="${LORA_BENCHMARK_WARMUP:-5}"
 BENCHMARK_ITERS="${LORA_BENCHMARK_ITERS:-15}"
 
@@ -83,8 +83,15 @@ echo "Ensuring Python dependencies are present ..."
 python3 -m pip install openai python-dotenv tenacity \
     -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple \
     --default-timeout=30 \
+    --break-system-packages \
     --quiet \
     2>&1 || true
+
+# Copy the summary as output.md for evaluation (agent reasoning log)
+SUMMARY_MD="$ROOT_DIR/phase2_summary.md"
+if [[ -f "$SUMMARY_MD" ]]; then
+    cp "$SUMMARY_MD" "$ROOT_DIR/output.md"
+fi
 
 NVCC_CMD="$(command -v nvcc || true)"
 if [[ -n "$NVCC_CMD" ]]; then
