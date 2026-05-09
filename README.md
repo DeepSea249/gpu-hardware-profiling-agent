@@ -303,9 +303,15 @@ Important options:
 | `--summary-path PATH` | `phase2_summary.md` | Phase 2 markdown summary |
 | `--search-rounds N` | `8` | Parsed for compatibility; the current code evaluates the fixed 8-template Stage 1 library subject to the time budget |
 | `--time-budget-minutes N` | `20` | Phase 2 time budget |
-| `--benchmark-sizes LIST` | `3584,3600,4096,4608` | Comma-separated Phase 2 dimensions |
+| `--benchmark-sizes LIST` | `3584,3600,3712,3840,3968,4000,4096,4200,4352,4480,4608` | Comma-separated Phase 2 dimensions |
 | `--benchmark-warmup N` | `5` | Warmup iterations per benchmark |
 | `--benchmark-iters N` | `15` | Timed iterations per benchmark |
+| `--safety-margin-seconds N` | `150` | Soft-deadline margin reserved inside the hard time budget |
+| `--stage1-pass1-iters N` | `5` | Cheap Stage 1 pass timed iterations |
+| `--stage1-pass2-iters N` | `15` | Deep Stage 1 pass timed iterations |
+| `--stage1-topk N` | `3` | Candidates promoted to the deep Stage 1 pass |
+| `--stage2-max-iters N` | `3` | Maximum guarded LLM improvement iterations |
+| `--min-stage2-seconds N` | `360` | Minimum time left before starting a Stage 2 iteration |
 | `--skip-llm` | false | Disable Phase 2 LLM improvement loop |
 
 Examples:

@@ -12,9 +12,15 @@ OPTIMIZED_PATH="${OPTIMIZED_PATH:-$ROOT_DIR/optimized_lora.cu}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
 SEARCH_ROUNDS="${LORA_SEARCH_ROUNDS:-8}"
 TIME_BUDGET_MINUTES="${LORA_TIME_BUDGET_MINUTES:-20}"
-BENCHMARK_SIZES="${LORA_BENCHMARK_SIZES:-3584,3600,4096,4608}"
+BENCHMARK_SIZES="${LORA_BENCHMARK_SIZES:-3584,3600,3712,3840,3968,4000,4096,4200,4352,4480,4608}"
 BENCHMARK_WARMUP="${LORA_BENCHMARK_WARMUP:-5}"
 BENCHMARK_ITERS="${LORA_BENCHMARK_ITERS:-15}"
+STAGE2_MAX_ITERS="${LORA_STAGE2_MAX_ITERS:-3}"
+SAFETY_MARGIN_SECONDS="${LORA_SAFETY_MARGIN_SECONDS:-150}"
+STAGE1_PASS1_ITERS="${LORA_STAGE1_PASS1_ITERS:-5}"
+STAGE1_PASS2_ITERS="${LORA_STAGE1_PASS2_ITERS:-15}"
+STAGE1_TOPK="${LORA_STAGE1_TOPK:-3}"
+MIN_STAGE2_SECONDS="${LORA_MIN_STAGE2_SECONDS:-360}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -56,6 +62,30 @@ while [[ $# -gt 0 ]]; do
             ;;
         --benchmark-iters)
             BENCHMARK_ITERS="$2"
+            shift 2
+            ;;
+        --stage2-max-iters)
+            STAGE2_MAX_ITERS="$2"
+            shift 2
+            ;;
+        --safety-margin-seconds)
+            SAFETY_MARGIN_SECONDS="$2"
+            shift 2
+            ;;
+        --stage1-pass1-iters)
+            STAGE1_PASS1_ITERS="$2"
+            shift 2
+            ;;
+        --stage1-pass2-iters)
+            STAGE1_PASS2_ITERS="$2"
+            shift 2
+            ;;
+        --stage1-topk)
+            STAGE1_TOPK="$2"
+            shift 2
+            ;;
+        --min-stage2-seconds)
+            MIN_STAGE2_SECONDS="$2"
             shift 2
             ;;
         *)
@@ -146,7 +176,13 @@ python3 agent.py \
     --time-budget-minutes "$TIME_BUDGET_MINUTES" \
     --benchmark-sizes "$BENCHMARK_SIZES" \
     --benchmark-warmup "$BENCHMARK_WARMUP" \
-    --benchmark-iters "$BENCHMARK_ITERS"
+    --benchmark-iters "$BENCHMARK_ITERS" \
+    --stage2-max-iters "$STAGE2_MAX_ITERS" \
+    --safety-margin-seconds "$SAFETY_MARGIN_SECONDS" \
+    --stage1-pass1-iters "$STAGE1_PASS1_ITERS" \
+    --stage1-pass2-iters "$STAGE1_PASS2_ITERS" \
+    --stage1-topk "$STAGE1_TOPK" \
+    --min-stage2-seconds "$MIN_STAGE2_SECONDS"
 
 echo "================================================================="
 echo " Done."

@@ -37,7 +37,7 @@ import tempfile
 
 from src.hardware_prober import HardwareProber
 from src.kernel_analyzer import KernelAnalyzer
-from src.lora_optimizer import LoRAOptimizationAgent
+from src.lora_optimizer import DEFAULT_BENCHMARK_SIZES, LoRAOptimizationAgent
 from src.reasoning import ReasoningEngine
 from src import utils
 
@@ -156,6 +156,8 @@ def run_lora_optimization(args) -> dict:
         for chunk in args.benchmark_sizes.split(',')
         if chunk.strip()
     ]
+    if not benchmark_sizes:
+        benchmark_sizes = DEFAULT_BENCHMARK_SIZES
 
     optimizer = LoRAOptimizationAgent(
         project_root=os.path.dirname(os.path.abspath(__file__)),
@@ -167,6 +169,12 @@ def run_lora_optimization(args) -> dict:
         benchmark_iters=args.benchmark_iters,
         search_rounds=args.search_rounds,
         time_budget_seconds=int(args.time_budget_minutes * 60),
+        safety_margin_seconds=args.safety_margin_seconds,
+        stage2_max_iters=args.stage2_max_iters,
+        min_stage2_iteration_seconds=args.min_stage2_seconds,
+        stage1_pass1_iters=args.stage1_pass1_iters,
+        stage1_pass2_iters=args.stage1_pass2_iters,
+        stage1_topk=args.stage1_topk,
         use_llm=not args.skip_llm,
     )
     return optimizer.run()
@@ -241,8 +249,10 @@ Examples:
         help='Phase 2 search time budget in minutes (default: 20)'
     )
     parser.add_argument(
-        '--benchmark-sizes', type=str, default='3584,3600,4096,4608',
-        help='Comma-separated Phase 2 benchmark sizes (default: 3584,3600,4096,4608)'
+        '--benchmark-sizes', type=str,
+        default='3584,3600,3712,3840,3968,4000,4096,4200,4352,4480,4608',
+        help=('Comma-separated Phase 2 benchmark sizes '
+              '(default: 3584,3600,3712,3840,3968,4000,4096,4200,4352,4480,4608)')
     )
     parser.add_argument(
         '--benchmark-warmup', type=int, default=5,
@@ -251,6 +261,30 @@ Examples:
     parser.add_argument(
         '--benchmark-iters', type=int, default=15,
         help='Phase 2 timed iterations per benchmark size (default: 15)'
+    )
+    parser.add_argument(
+        '--safety-margin-seconds', type=int, default=150,
+        help='Phase 2 soft-deadline safety margin in seconds (default: 150)'
+    )
+    parser.add_argument(
+        '--stage2-max-iters', type=int, default=3,
+        help='Maximum guarded LLM Stage 2 iterations (default: 3)'
+    )
+    parser.add_argument(
+        '--min-stage2-seconds', type=int, default=360,
+        help='Minimum time left before starting a Stage 2 iteration (default: 360)'
+    )
+    parser.add_argument(
+        '--stage1-pass1-iters', type=int, default=5,
+        help='Timed iterations for cheap Stage 1 pass 1 benchmarks (default: 5)'
+    )
+    parser.add_argument(
+        '--stage1-pass2-iters', type=int, default=15,
+        help='Timed iterations for deep Stage 1 pass 2 benchmarks (default: 15)'
+    )
+    parser.add_argument(
+        '--stage1-topk', type=int, default=3,
+        help='Number of top Stage 1 candidates to deep-benchmark (default: 3)'
     )
     parser.add_argument(
         '--skip-llm', action='store_true',
