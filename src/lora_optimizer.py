@@ -92,7 +92,7 @@ torch::Tensor forward(torch::Tensor W,
               A.is_contiguous() && B.is_contiguous(),
               "All tensors must be contiguous");
   at::Tensor Y = at::mm(W, X);
-  at::Tensor tmp = at::mm(B.t(), X);
+  at::Tensor tmp = at::mm(B.t().contiguous(), X);
   at::addmm_out(Y, Y, A, tmp, 1.0, 1.0);
   return Y;
 }
@@ -119,7 +119,7 @@ torch::Tensor forward(torch::Tensor W,
   at::Tensor tmp;
   {
     c10::cuda::CUDAStreamGuard sg(aux_stream);
-    tmp = at::mm(B.t(), X);
+    tmp = at::mm(B.t().contiguous(), X);
     CUDA_CHECK(cudaEventRecord(evt_btx, aux_stream.stream()));
   }
   CUDA_CHECK(cudaStreamWaitEvent(main_stream, evt_btx, 0));
@@ -186,7 +186,7 @@ torch::Tensor forward(torch::Tensor W,
   at::Tensor tmp;
   {
     c10::cuda::CUDAStreamGuard sg(aux_stream);
-    tmp = at::mm(B.t(), X);
+    tmp = at::mm(B.t().contiguous(), X);
     CUDA_CHECK(cudaEventRecord(evt_btx, aux_stream.stream()));
   }
   CUDA_CHECK(cudaStreamWaitEvent(main_stream, evt_btx, 0));
@@ -227,7 +227,7 @@ torch::Tensor forward(torch::Tensor W,
   }
   {
     c10::cuda::CUDAStreamGuard sg(stream2);
-    at::mm_out(tmp, B.t(), X);
+    at::mm_out(tmp, B.t().contiguous(), X);
     CUDA_CHECK(cudaEventRecord(evt_btx, stream2.stream()));
   }
   CUDA_CHECK(cudaStreamWaitEvent(main_stream, evt_wx, 0));
@@ -255,7 +255,7 @@ torch::Tensor forward(torch::Tensor W,
   auto Y = at::empty({d, d}, W.options());
   auto tmp = at::empty({r, d}, W.options());
   at::mm_out(Y, W, X);
-  at::mm_out(tmp, B.t(), X);
+  at::mm_out(tmp, B.t().contiguous(), X);
   at::addmm_out(Y, Y, A, tmp, 1.0, 1.0);
   return Y;
 }
@@ -285,7 +285,7 @@ torch::Tensor forward(torch::Tensor W,
   at::mm_out(Y, W, X);
   {
     c10::cuda::CUDAStreamGuard sg(aux_stream);
-    at::mm_out(tmp, B.t(), X);
+    at::mm_out(tmp, B.t().contiguous(), X);
     CUDA_CHECK(cudaEventRecord(evt_btx, aux_stream.stream()));
   }
   CUDA_CHECK(cudaStreamWaitEvent(main_stream, evt_btx, 0));
@@ -619,7 +619,7 @@ Your code must be a single self-contained .cu file that:
 Allowed optimisations (SAFE — preserve correctness):
   - Stream overlap: run W@X and B^T@X on separate CUDA streams
   - Pre-allocate output tensors with at::empty + at::mm_out / at::addmm_out
-  - Make B.t() contiguous before mm to improve memory layout
+  - Make B.t() contiguous before mm to match reference accumulation order
   - Use at::addmm_out vs separate at::mm + add_
   - Custom CUDA kernels for the small A@tmp (rank-16) accumulation,
     as long as the numerical result matches at::addmm exactly
